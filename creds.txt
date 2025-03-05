@@ -1,0 +1,9 @@
+IPkatsuroaliaksandr@yandex.by
+01042010Ex
+
+https://new.tools.by/eshop-export/55
+
+wget https://new.tools.by/api/eshop-export/01JM9VS1RW4FK39D0B2CZWFNEV?format=csv
+wget https://new.tools.by/api/eshop-export/01JM9VS1RW4FK39D0B2CZWFNEV?format=xml
+
+
