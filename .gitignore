@@ -174,3 +174,4 @@ cython_debug/
 config.ini
 base.db
 data.xml
+creds.txt
