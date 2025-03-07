@@ -4,6 +4,7 @@
 import os
 import sys
 import time
+import tqdm
 import configparser
 import requests
 from src.file import io
@@ -20,10 +21,13 @@ global_timestamp = int(time.time())
 # Загружаем настройки
 cfg = configparser.ConfigParser()
 cfg.read('config.ini')
-src_url = cfg.get('config', 'api_url')
-params = cfg.get('config', 'params').split(',')
+src_url = cfg.get('tools', 'api_url')
+params = cfg.get('tools', 'params').split(',')
+wp_url = cfg.get('wp', 'wp_url')
+wp_key = cfg.get('wp', 'wp_key')
 
 def download_data(url):
+
     try:
         response = requests.get(url)
         if response.status_code == 200:
@@ -188,20 +192,26 @@ def compare_categories(categories_from_file, categories_from_db):
         if cat_id not in categories_from_db:
             result = db.insert_categories(categories_from_file[cat_id]['id'], categories_from_file[cat_id]['name'], categories_from_file[cat_id]['parent_id'])
             if result:
-                print(f'Добавлена категория: {categories_from_file[cat_id]["name"]}')
+                pass
+                #print(f'Добавлена категория: {categories_from_file[cat_id]["name"]}')
             else:
                 print(f'Ошибка при добавлении категории')
                 print(categories_from_file[cat_id])
 
+    categories_from_file.clear()
+    categories_from_db.clear()
+
 
 def compare_products(products_from_file, products_from_db):
+    bar = tqdm.tqdm(total=len(products_from_file))
     compare_idents = []
     # Сравниваем продукты
     for product_id in products_from_file:
         if product_id not in products_from_db:
             result = db.insert_products(products_from_file[product_id], global_timestamp)
             if result:
-                print(f'Добавлен продукт: {products_from_file[product_id]["name"]}')
+                pass
+                #print(f'Добавлен продукт: {products_from_file[product_id]["name"]}')
             else:
                 print(f'Ошибка при добавлении продукта')
                 print(products_from_file[product_id])
@@ -210,13 +220,19 @@ def compare_products(products_from_file, products_from_db):
                 print(f'Продукт {products_from_file[product_id]["name"]} был обновлен.')
                 result = db.update_products(products_from_file[product_id], global_timestamp)
                 if result:
-                    print(f'Продукт {products_from_file[product_id]["name"]} обновлен.')
+                    pass
+                    #print(f'Продукт {products_from_file[product_id]["name"]} обновлен.')
                 else:
                     print(f'Ошибка при обновлении продукта')
                     print(products_from_file[product_id])
             else:
                 compare_idents.append(product_id)
 
+        bar.update(1)
+
+    bar.close()
+    bar.clear()
+    
     # обновляем время в продуктах где не было изменений
     if len(compare_idents) > 0:
         result = db.update_products_time(compare_idents, global_timestamp)
@@ -224,6 +240,21 @@ def compare_products(products_from_file, products_from_db):
         print(f'Время товаров обновлено.')
     else:
         print(f'Ошибка при обновлении времени')
+
+    compare_idents.clear()
+    products_from_file.clear()
+    products_from_db.clear()
+
+
+def wp_add_category():
+    product = {
+        "name": "Test Product",
+        "type": "simple",
+        "regular_price": "10.99",
+        "description": "A sample product description.",
+        "categories": [{"id": 1}],  # Replace with actual category ID
+        "images": [{"src": "https://example.com/image.jpg"}]
+    }
 
 
 def main():
@@ -241,21 +272,27 @@ def main():
         db.destroy_data()
         print('База данных очищена.')
 
-    # Получаем данные с сайта или локального файла
-    products_from_site = get_from_site()
-    file_categories, file_products = parse_filedata(products_from_site)
+    # # Получаем данные с сайта или локального файла
+    # products_from_site = get_from_site()
+    # file_categories, file_products = parse_filedata(products_from_site)
+    # print(f'Получено {len(file_categories)} категорий и {len(file_products)} продуктов.')
+    #
+    # # Получаем данные из БД
+    # # Собираем категории
+    # db_categories = rows_to_dict(db.get_categories())
+    # # Собираем товары
+    # db_products = rows_to_dict(db.get_all_products())
+    #
+    # # Отправляем в проверку категории
+    # compare_categories(file_categories, db_categories)
+    #
+    # # Отправляем в проверку продукты
+    # compare_products(file_products, db_products)
 
-    # Получаем данные из БД
-    # Собираем категории
-    db_categories = rows_to_dict(db.get_categories())
-    # Собираем товары
-    db_products = rows_to_dict(db.get_all_products())
-
-    # Отправляем в проверку категории
-    compare_categories(file_categories, db_categories)
-
-    # Отправляем в проверку продукты
-    compare_products(file_products, db_products)
+    # Начинаем работать с Wordpress
+    wp = WooCommerce(wp_url, wp_key)
+    if wp.connect():
+        wp_add_category()
 
 
 if __name__ == '__main__':
