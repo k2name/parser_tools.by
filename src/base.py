@@ -10,6 +10,7 @@ class sql:
         self.status = status
         return status
 
+
     def connect(self):
         if not self.conn:
             try:
@@ -23,6 +24,7 @@ class sql:
                 return False
         else:
             return True
+
 
     def destroy_data(self):
         if not self.conn:
@@ -39,6 +41,7 @@ class sql:
         except:
             return False
 
+
     # Категории
     def get_categories(self):
         if not self.conn:
@@ -52,6 +55,49 @@ class sql:
             return result
         except:
             return False
+
+
+    def get_category_by_id(self, id):
+        if not self.conn:
+            self.connect()
+
+        cur = self.conn.cursor()
+        try:
+            cur.execute(f"SELECT * FROM `categories` WHERE `id`={id};")
+            result = cur.fetchone()
+            cur.close()
+            return result
+        except:
+            return False
+
+
+    def get_category_by_parent_id(self, parent_id):
+        if not self.conn:
+            self.connect()
+
+        cur = self.conn.cursor()
+        try:
+            cur.execute(f"SELECT * FROM `categories` WHERE `parent_id`={parent_id};")
+            result = cur.fetchall()
+            cur.close()
+            return result
+        except:
+            return False
+
+
+    def get_category_by_status(self, status='new'):
+        if not self.conn:
+            self.connect()
+
+        cur = self.conn.cursor()
+        try:
+            cur.execute(f"SELECT * FROM `categories` WHERE `status`={status};")
+            result = cur.fetchall()
+            cur.close()
+            return result
+        except:
+            return False
+
 
     def insert_categories(self, id, name, parent_id):
         if not self.conn:
@@ -69,6 +115,33 @@ class sql:
             return False
 
 
+    def update_categories(self, id, name, parent_id):
+        if not self.conn:
+            self.connect()
+
+        cur = self.conn.cursor()
+        try:
+            cur.execute("UPDATE `categories` SET `name`=?, `parent_id`=?, status='updated' WHERE `id`=?;", (name, parent_id, id))
+            self.conn.commit()
+            cur.close()
+            return True
+        except:
+            return False
+
+
+    def delete_categories(self, id):
+        if not self.conn:
+            self.connect()
+
+        cur = self.conn.cursor()
+        try:
+            cur.execute("DELETE FROM `categories` WHERE `id`=?;", (id,))
+            self.conn.commit()
+            cur.close()
+            return True
+        except:
+            return False
+
     # Товары
     def get_all_products(self):
         if not self.conn:
@@ -82,6 +155,7 @@ class sql:
             return result
         except:
             return False
+
 
     def insert_products(self, product, global_timestamp):
         if not self.conn:
@@ -125,6 +199,7 @@ class sql:
             print(f"Неизвестная ошибка: {e}")
             return False
 
+
     def update_products(self, product, global_timestamp):
         if not self.conn:
             self.connect()
@@ -137,6 +212,7 @@ class sql:
         # Добавляем timedata в product, если его нет
         if 'timedata' not in product:
             product['timedata'] = global_timestamp
+            product['status'] = 'updated'
 
         # Убираем 'id' из словаря, так как он используется в WHERE
         product_id = product['id']
@@ -166,12 +242,37 @@ class sql:
             print(f"Неизвестная ошибка: {e}")
             return False
 
+
+    def update_product_status(self, id, global_timestamp, status='updated'):
+        # Проверяем, что соединение с базой данных установлено
+        if not self.conn:
+            self.connect()
+
+        # Формируем SQL-запрос
+        sql = f"UPDATE products SET timestamp = ?, status = ? WHERE id = ?;"
+
+        # Значения для обновления: status + id
+        values = (global_timestamp, status, id)
+
+        # Выполняем запрос
+        cur = self.conn.cursor()
+        try:
+            cur.execute(sql, values)
+            self.conn.commit()
+            cur.close()
+            return True
+        except sqlite3.OperationalError as e:
+            print(f"Ошибка выполнения запроса: {e}")
+            return False
+        except Exception as e:
+            print(f"Неизвестная ошибка: {e}")
+            return False
+
+
     def update_products_time(self, product_ids, timedata):
         # Проверяем, что соединение с базой данных установлено
         if not self.conn:
-            if not self.connect():
-                print("Ошибка: не удалось установить соединение с базой данных.")
-                return False
+            self.connect()
 
         # Проверяем, что массив id не пустой и является списком
         if not isinstance(product_ids, list) or not product_ids:
@@ -208,3 +309,35 @@ class sql:
         except Exception as e:
             print(f"Неизвестная ошибка: {e}")
             return False
+
+
+    def get_product_by_id(self, product_id):
+        if not self.conn:
+            self.connect()
+
+        # Формируем SQL-запрос
+        sql = "SELECT * FROM products WHERE id = ?;"
+
+        # Выполняем запрос
+        cur = self.conn.cursor()
+        cur.execute(sql, (product_id,))
+        result = cur.fetchone()
+        cur.close()
+
+        return result
+
+
+    def get_products_by_status(self, status):
+        if not self.conn:
+            self.connect()
+
+        # Формируем SQL-запрос
+        sql = "SELECT * FROM products WHERE status = ?;"
+
+        # Выполняем запрос
+        cur = self.conn.cursor()
+        cur.execute(sql, (status,))
+        result = cur.fetchall()
+        cur.close()
+
+        return result

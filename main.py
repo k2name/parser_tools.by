@@ -2,6 +2,7 @@
 #-*- coding: utf-8 -*-
 
 import os
+import re
 import sys
 import time
 import tqdm
@@ -11,7 +12,7 @@ from src.file import io
 from src.help import k2
 from src.telegramm import TelegramBot
 from src.base import sql
-from src.woocommerce import WooCommerce
+from src.woocommerce import WooCommerceAPI
 import xml.etree.ElementTree as ET
 
 use_local = True
@@ -25,6 +26,7 @@ src_url = cfg.get('tools', 'api_url')
 params = cfg.get('tools', 'params').split(',')
 wp_url = cfg.get('wp', 'wp_url')
 wp_key = cfg.get('wp', 'wp_key')
+wp_secret = cfg.get('wp', 'wp_secret')
 
 def download_data(url):
 
@@ -40,6 +42,15 @@ def download_data(url):
     except Exception as e:
         print(f"Error while downloading file: {e}")
         return False
+
+
+def clean_text(text):
+    """
+    Очищает текст от недопустимых символов.
+    """
+    # Удаляем управляющие символы (кроме табуляции, перевода строки и возврата каретки)
+    cleaned_text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+    return cleaned_text
 
 
 def convert_value(value, target_type):
@@ -128,8 +139,10 @@ def get_from_site():
     if not use_local:
         xml_data = download_data(src_url)
         data = io()
-        if xml_data:
-            data.rewriteto('data.xml', xml_data.text)
+        # Очищаем текст от спецсимволов
+        cleaned_text = clean_text(xml_data.text)
+        if cleaned_text:
+            data.rewriteto('data.xml', cleaned_text)
             if data:
                 print('Файл успешно сохранен.')
     return parse_large_xml('data.xml')
@@ -198,6 +211,15 @@ def compare_categories(categories_from_file, categories_from_db):
                 print(f'Ошибка при добавлении категории')
                 print(categories_from_file[cat_id])
 
+        if categories_from_file[cat_id] != categories_from_db[cat_id]:
+            result = db.update_categories(categories_from_file[cat_id]['id'], categories_from_file[cat_id]['name'], categories_from_file[cat_id]['parent_id'])
+            if result:
+                pass
+                #print(f'Категория {categories_from_file[cat_id]["name"]} обновлена.')
+            else:
+                print(f'Ошибка при обновлении категории')
+                print(categories_from_file[cat_id])
+
     categories_from_file.clear()
     categories_from_db.clear()
 
@@ -246,20 +268,22 @@ def compare_products(products_from_file, products_from_db):
     products_from_db.clear()
 
 
-def wp_add_category():
-    product = {
-        "name": "Test Product",
-        "type": "simple",
-        "regular_price": "10.99",
-        "description": "A sample product description.",
-        "categories": [{"id": 1}],  # Replace with actual category ID
-        "images": [{"src": "https://example.com/image.jpg"}]
-    }
+def compare_wp_categories():
+    global db
+
+    # Собираем категории
+    db_categories = rows_to_dict(db.get_categories())
+    pass
+
+
+def compare_wp_products():
+    pass
 
 
 def main():
     global help
     global db
+    global wp
     help = k2()
     db = sql()
 
@@ -290,9 +314,10 @@ def main():
     # compare_products(file_products, db_products)
 
     # Начинаем работать с Wordpress
-    wp = WooCommerce(wp_url, wp_key)
+    wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
     if wp.connect():
-        wp_add_category()
+        compare_wp_categories()
+        compare_wp_products()
 
 
 if __name__ == '__main__':

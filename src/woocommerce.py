@@ -1,44 +1,118 @@
-import os
 import requests
-import json
+from requests.auth import HTTPBasicAuth
 
-class WooCommerce:
-    def __init__(self, url, api_key):
-        self.url = url.rstrip('/') + '/wp-json/wc/v2/'
-        self.api_key = api_key
-        self.headers = {
-            'Authorization': f'Bearer {self.api_key}',
-            'Content-Type': 'application/json'
-        }
-        if not self.api_key:
-            raise ValueError("API key is required. Set it via environment variable or pass it explicitly.")
+class WooCommerceAPI:
+    def __init__(self, url, consumer_key, consumer_secret, api_version='wc/v3'):
+        self.url = url
+        self.consumer_key = consumer_key
+        self.consumer_secret = consumer_secret
+        self.api_version = api_version
+
+    def _get_auth(self):
+        return HTTPBasicAuth(self.consumer_key, self.consumer_secret)
+
 
     def connect(self):
-        try:
-            response = requests.get(self.url, headers=self.headers)
-            if response.status_code == 200:
-                print("Successfully connected to WooCommerce API.")
-                return True
-            else:
-                print(f"Error connecting to WooCommerce API: {response.status_code}")
-                print(response.json())
-                return False
-        except Exception as e:
-            print(f"Error while connecting to WooCommerce API: {e}")
-            return False
+        """Подключается к API"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products"
+        response = requests.get(
+            endpoint,
+            auth=self._get_auth()
+        )
+        response.raise_for_status()
+        return response.json()
 
-    def add_item(self, product_data):
-        try:
-            api_url = self.url + 'products'
-            response = requests.post(api_url, headers=self.headers, json=product_data)
 
-            if response.status_code == 201:
-                print("Product added successfully.")
-                return response.json()
-            else:
-                print(f"Error adding product: {response.status_code}")
-                print(response.json())
-                return None
-        except Exception as e:
-            print(f"Error while adding product: {e}")
-            return None
+    # Категории и подкатегории
+    def create_category(self, name, parent_id=None):
+        """Создает категорию или подкатегорию"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories"
+        data = {
+            'name': name,
+            'parent': parent_id  # None для основной категории
+        }
+        response = requests.post(
+            endpoint,
+            auth=self._get_auth(),
+            json=data
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def update_category(self, category_id, data):
+        """Обновляет категорию"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories/{category_id}"
+        response = requests.put(
+            endpoint,
+            auth=self._get_auth(),
+            json=data
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def delete_category(self, category_id):
+        """Удаляет категорию"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories/{category_id}"
+        response = requests.delete(
+            endpoint,
+            auth=self._get_auth()
+        )
+        response.raise_for_status()
+        return response.json()
+
+    # Продукты
+    def upload_image(self, image_url):
+        """Загружает изображение по URL"""
+        endpoint = f"{self.url}/wp-json/wp/v2/media"
+        data = {
+            'title': 'Uploaded Image',
+            'description': 'Image uploaded via API',
+            'media_type': 'image',
+            'source_url': image_url
+        }
+        response = requests.post(
+            endpoint,
+            auth=self._get_auth(),
+            json=data
+        )
+        response.raise_for_status()
+        return response.json()['id']
+
+    def create_product(self, name, description, price, category_id, image_id):
+        """Создает продукт с категорией и изображением"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products"
+        data = {
+            'name': name,
+            'description': description,
+            'regular_price': str(price),
+            'categories': [{'id': category_id}],
+            'images': [{'id': image_id}]
+        }
+        response = requests.post(
+            endpoint,
+            auth=self._get_auth(),
+            json=data
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def update_product(self, product_id, data):
+        """Обновляет продукт"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/{product_id}"
+        response = requests.put(
+            endpoint,
+            auth=self._get_auth(),
+            json=data
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def delete_product(self, product_id):
+        """Удаляет продукт"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/{product_id}"
+        response = requests.delete(
+            endpoint,
+            auth=self._get_auth()
+        )
+        response.raise_for_status()
+        return response.json()
