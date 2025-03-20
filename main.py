@@ -145,6 +145,7 @@ def get_from_site():
             data.rewriteto('data.xml', cleaned_text)
             if data:
                 print('Файл успешно сохранен.')
+
     return parse_large_xml('data.xml')
 
 
@@ -202,8 +203,9 @@ def rows_to_dict(rows, key_column='id'):
 def compare_categories(categories_from_file, categories_from_db):
     # Сравниваем категории
     for cat_id in categories_from_file:
+        keys_to_compare = ['name', 'parent_id']
         if cat_id not in categories_from_db:
-            result = db.insert_categories(categories_from_file[cat_id]['id'], categories_from_file[cat_id]['name'], categories_from_file[cat_id]['parent_id'])
+            result = db.insert_categories(id=categories_from_file[cat_id]['id'], name=categories_from_file[cat_id]['name'], parent_id=categories_from_file[cat_id]['parent_id'])
             if result:
                 pass
                 #print(f'Добавлена категория: {categories_from_file[cat_id]["name"]}')
@@ -211,14 +213,27 @@ def compare_categories(categories_from_file, categories_from_db):
                 print(f'Ошибка при добавлении категории')
                 print(categories_from_file[cat_id])
 
-        if categories_from_file[cat_id] != categories_from_db[cat_id]:
-            result = db.update_categories(categories_from_file[cat_id]['id'], categories_from_file[cat_id]['name'], categories_from_file[cat_id]['parent_id'])
+        elif any(categories_from_file[cat_id][key] != categories_from_db[cat_id][key] for key in keys_to_compare):
+            result = db.update_categories(id=cat_id, name=categories_from_file[cat_id]['name'], wp_id=categories_from_db[cat_id]['wp_id'], status='updated', parent_id=categories_from_file[cat_id]['parent_id'])
             if result:
                 pass
                 #print(f'Категория {categories_from_file[cat_id]["name"]} обновлена.')
             else:
                 print(f'Ошибка при обновлении категории')
                 print(categories_from_file[cat_id])
+
+    for cat_id in categories_from_db:
+        if cat_id not in categories_from_file:
+            '''
+            Тут надо дописать рекурсивное удаление. Что бы сразу находило все товары в БД по категориям и субкатегориям и удаляло внутри WP. А только потом требуется очистить БД
+            '''
+            #result = db.update_categories(id=cat_id, name=categories_from_db[cat_id]['name'], wp_id=categories_from_db[cat_id]['wp_id'], status='deleted', parent_id=categories_from_db[cat_id]['parent_id'])
+            result = db.delete_categories(id=cat_id)
+            if result:
+                print(f'Категория {categories_from_db[cat_id]["name"]} удалена.')
+            else:
+                print(f'Ошибка при удалении категории')
+                print(categories_from_db[cat_id])
 
     categories_from_file.clear()
     categories_from_db.clear()
@@ -268,12 +283,71 @@ def compare_products(products_from_file, products_from_db):
     products_from_db.clear()
 
 
+def build_category_tree(categories):
+    # Создаем словарь для хранения дерева
+    category_tree = {cat_id: {**cat, "subcat": {}} for cat_id, cat in categories.items()}
+
+    # Список для хранения корневых категорий
+    root_categories = {}
+
+    # Строим дерево
+    for cat_id, cat in category_tree.items():
+        parent_id = cat["parent_id"]
+        if parent_id is None:
+            # Это корневая категория
+            root_categories[cat["id"]] = cat
+        else:
+            # Это подкатегория, добавляем её к родителю
+            if parent_id in category_tree:
+                category_tree[parent_id]["subcat"][cat["id"]] = cat
+
+    return root_categories
+
+
+def process_categories(categories, wp, wp_parent_id=None):
+    global db
+    for category_id, category in categories.items():
+        # Проверяем статус категории
+        if category['status'] == 'new':
+            print(f"Обрабатываем новую категорию: {category['name']} (ID: {category['id']})")
+            result = wp.create_category(name=category['name'], wp_parent_id=wp_parent_id)  # Вызываем метод обработки
+            if result:
+                wp_id = result['id']
+                wp_parent_id = result['parent'] if result['parent'] != 0 else None
+                db.update_categories(id=category['id'], name=category['name'], wp_id=wp_id, status='published', parent_id=category['parent_id'], wp_parent_id=wp_parent_id)
+                categories[category_id]['wp_id'] = wp_id
+                categories[category_id]['wp_parent_id'] = wp_parent_id
+
+
+        elif category['status'] == 'update':
+            print(f"Обновляем категорию: {category['name']} (ID: {category['id']})")
+            result = wp.update_category(wp_id=category['wp_id'], name=category['name'])
+            if result:
+                db.update_categories(id=category['id'], name=category['name'], status='published', parent_id=category['parent_id'], wp_parent_id=wp_parent_id, wp_id=category['wp_id'])
+
+        # elif category['status'] == 'delete':
+        #     print(f"Удаляем категорию: {category['name']} (ID: {category['id']})")
+        #     wp.delete_category(category)
+
+        # Рекурсивно обрабатываем подкатегории
+        if 'subcat' in category and isinstance(category['subcat'], dict):
+            if len(category['subcat']) > 0:
+                process_categories(category['subcat'], wp, wp_parent_id=categories[category_id]['wp_id'])
+
+
 def compare_wp_categories():
     global db
+    global wp
 
     # Собираем категории
     db_categories = rows_to_dict(db.get_categories())
-    pass
+    categories = {}
+    categories = build_category_tree(db_categories)
+
+    # Обрабатываем категории
+    process_categories(categories, wp)
+    categories.clear()
+    db_categories.clear()
 
 
 def compare_wp_products():
@@ -296,22 +370,22 @@ def main():
         db.destroy_data()
         print('База данных очищена.')
 
-    # # Получаем данные с сайта или локального файла
-    # products_from_site = get_from_site()
-    # file_categories, file_products = parse_filedata(products_from_site)
-    # print(f'Получено {len(file_categories)} категорий и {len(file_products)} продуктов.')
-    #
-    # # Получаем данные из БД
-    # # Собираем категории
-    # db_categories = rows_to_dict(db.get_categories())
-    # # Собираем товары
-    # db_products = rows_to_dict(db.get_all_products())
-    #
-    # # Отправляем в проверку категории
-    # compare_categories(file_categories, db_categories)
-    #
-    # # Отправляем в проверку продукты
-    # compare_products(file_products, db_products)
+    # Получаем данные с сайта или локального файла
+    products_from_site = get_from_site()
+    file_categories, file_products = parse_filedata(products_from_site)
+    print(f'Получено {len(file_categories)} категорий и {len(file_products)} продуктов.')
+
+    # Получаем данные из БД
+    # Собираем категории
+    db_categories = rows_to_dict(db.get_categories())
+    # Собираем товары
+    db_products = rows_to_dict(db.get_all_products())
+
+    # Отправляем в проверку категории
+    compare_categories(file_categories, db_categories)
+
+    # Отправляем в проверку продукты
+    compare_products(file_products, db_products)
 
     # Начинаем работать с Wordpress
     wp = WooCommerceAPI(wp_url, wp_key, wp_secret)

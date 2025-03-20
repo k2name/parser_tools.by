@@ -99,13 +99,13 @@ class sql:
             return False
 
 
-    def insert_categories(self, id, name, parent_id):
+    def insert_categories(self, id, name, parent_id, wp_id=None, status='new'):
         if not self.conn:
             self.connect()
 
         cur = self.conn.cursor()
         try:
-            cur.execute("INSERT INTO `categories` (`id`, `name`, `parent_id`) VALUES (?,?,?);", (id, name, parent_id))
+            cur.execute("INSERT INTO `categories` (`id`, `wp_id`, `name`, `parent_id`, `status`) VALUES (?,?,?,?,?);", (id, wp_id, name, parent_id, status))
             # Получаем последний автоинкрементный id
             last_id = cur.lastrowid
             self.conn.commit()
@@ -115,13 +115,13 @@ class sql:
             return False
 
 
-    def update_categories(self, id, name, parent_id):
+    def update_categories(self, id, name, parent_id, wp_id=None, wp_parent_id=None, status='updated', ):
         if not self.conn:
             self.connect()
 
         cur = self.conn.cursor()
         try:
-            cur.execute("UPDATE `categories` SET `name`=?, `parent_id`=?, status='updated' WHERE `id`=?;", (name, parent_id, id))
+            cur.execute("UPDATE `categories` SET `wp_id`=?, `wp_parent_id`=?, `name`=?, `parent_id`=?, status=? WHERE `id`=?;", (wp_id, wp_parent_id, name, parent_id, status, id))
             self.conn.commit()
             cur.close()
             return True

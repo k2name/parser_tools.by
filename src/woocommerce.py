@@ -24,30 +24,48 @@ class WooCommerceAPI:
 
 
     # Категории и подкатегории
-    def create_category(self, name, parent_id=None):
+    def create_category(self, name, wp_parent_id=None, description=None, image=None):
         """Создает категорию или подкатегорию"""
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories"
         data = {
             'name': name,
-            'parent': parent_id  # None для основной категории
+            'parent': wp_parent_id if wp_parent_id is not None else 0,
+            'description': description,
+            'image': image
         }
         response = requests.post(
             endpoint,
             auth=self._get_auth(),
             json=data
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            print(f"Ошибка при создании категории: {e}")
+            print(f"Текст ответа: {response.text}")  # Выводим детали ошибки
+            raise
         return response.json()
 
-    def update_category(self, category_id, data):
+    def update_category(self, wp_id, name, description=None, image=None):
         """Обновляет категорию"""
-        endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories/{category_id}"
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories/{wp_id}"
+        data = {
+            'name': name,
+            'description': description,
+            'image': image
+        }
+
         response = requests.put(
             endpoint,
             auth=self._get_auth(),
             json=data
         )
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            print(f"Ошибка при создании категории: {e}")
+            print(f"Текст ответа: {response.text}")  # Выводим детали ошибки
+            raise
         return response.json()
 
     def delete_category(self, category_id):
@@ -116,3 +134,7 @@ class WooCommerceAPI:
         )
         response.raise_for_status()
         return response.json()
+
+    def cat_processor(self, category):
+        """Обрабатывает категорию"""
+        print(category)
