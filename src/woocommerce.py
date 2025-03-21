@@ -11,16 +11,24 @@ class WooCommerceAPI:
     def _get_auth(self):
         return HTTPBasicAuth(self.consumer_key, self.consumer_secret)
 
-
     def connect(self):
-        """Подключается к API"""
-        endpoint = f"{self.url}/wp-json/{self.api_version}/products"
-        response = requests.get(
-            endpoint,
-            auth=self._get_auth()
-        )
-        response.raise_for_status()
-        return response.json()
+        """Проверяет связь с API и валидность токена"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/system_status"
+        try:
+            response = requests.get(
+                endpoint,
+                auth=self._get_auth(),
+                timeout=10  # Установка таймаута
+            )
+            if response.status_code == 200:
+                print("Соединение успешно установлено")
+                return True
+            else:
+                print(f"Ошибка соединения: {response.status_code} - {response.text}")
+                return False
+        except requests.exceptions.RequestException as e:
+            print(f"Не удалось установить соединение: {e}")
+            return False
 
 
     # Категории и подкатегории

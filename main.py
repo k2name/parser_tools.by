@@ -227,8 +227,8 @@ def compare_categories(categories_from_file, categories_from_db):
             '''
             Тут надо дописать рекурсивное удаление. Что бы сразу находило все товары в БД по категориям и субкатегориям и удаляло внутри WP. А только потом требуется очистить БД
             '''
-            #result = db.update_categories(id=cat_id, name=categories_from_db[cat_id]['name'], wp_id=categories_from_db[cat_id]['wp_id'], status='deleted', parent_id=categories_from_db[cat_id]['parent_id'])
-            result = db.delete_categories(id=cat_id)
+            result = db.update_categories(id=cat_id, name=categories_from_db[cat_id]['name'], wp_id=categories_from_db[cat_id]['wp_id'], status='deleted', wp_parent_id=categories_from_db[cat_id]['wp_parent_id'], parent_id=categories_from_db[cat_id]['parent_id'])
+            #result = db.delete_categories(id=cat_id)
             if result:
                 print(f'Категория {categories_from_db[cat_id]["name"]} удалена.')
             else:
@@ -392,6 +392,7 @@ def main():
     if wp.connect():
         compare_wp_categories()
         compare_wp_products()
+
 
 
 if __name__ == '__main__':
