@@ -1,4 +1,4 @@
-# script for tool.by API
+# script for copy database from tool.by to tool.z1.by via WooCommerce API
 
 
 

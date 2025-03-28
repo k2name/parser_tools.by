@@ -145,6 +145,29 @@ class WooCommerceAPI:
         response.raise_for_status()
         return response.json()
 
+    def batch_delete_product(self, ids):
+        """Удаляет продукт"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/batch"
+
+        if len(ids) > 0:
+            data = {
+                'delete': ids
+            }
+        else:
+            return False
+
+        response = requests.post(
+            endpoint,
+            auth=self._get_auth(),
+            headers={"Content-Type": "application/json"},
+            json=data,
+            params={"force": True}
+        )
+
+        response.raise_for_status()
+        return response.json()
+
+
     def cat_processor(self, category):
         """Обрабатывает категорию"""
         print(category)

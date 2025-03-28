@@ -15,7 +15,7 @@ from src.base import sql
 from src.woocommerce import WooCommerceAPI
 import xml.etree.ElementTree as ET
 
-use_local = True
+use_local = False
 clear_db = False
 global_timestamp = int(time.time())
 
@@ -473,6 +473,8 @@ def compare_wp_products():
     global db
     global wp
 
+    many_id_2del = []
+
     # собираем товары из БД
     db_products = rows_to_dict(db.get_all_products())
     for id in db_products:
@@ -499,8 +501,10 @@ def compare_wp_products():
             result = db.delete_product(id)
             if db_products[id]['wp_id'] != None:
                 print(f"Удаляем продукт: {db_products[id]['name']}")
-                wp.delete_product(db_products[id]['wp_id'])
+                many_id_2del.append(db_products[id]['wp_id'])
+                #wp.delete_product(db_products[id]['wp_id'])
 
+    wp.batch_delete_product(many_id_2del)
     db_products.clear()
 
 
