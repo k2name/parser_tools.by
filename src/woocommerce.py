@@ -30,7 +30,6 @@ class WooCommerceAPI:
             print(f"Не удалось установить соединение: {e}")
             return False
 
-
     # Категории и подкатегории
     def create_category(self, name, wp_parent_id=None, description=None, image=None):
         """Создает категорию или подкатегорию"""
@@ -104,27 +103,28 @@ class WooCommerceAPI:
         response.raise_for_status()
         return response.json()['id']
 
-    def create_product(self, name, description, price, category_id, image_id):
+    def create_product(self, data):
         """Создает продукт с категорией и изображением"""
         endpoint = f"{self.url}/wp-json/{self.api_version}/products"
-        data = {
-            'name': name,
-            'description': description,
-            'regular_price': str(price),
-            'categories': [{'id': category_id}],
-            'images': [{'id': image_id}]
-        }
+
+        # Проверка на существование товара с этим SKU
+        check_exits = self.check_sku_exists(data['sku'])
+        if check_exits:
+            print(f"Товар с SKU {data['sku']} уже существует.")
+            self.delete_product(check_exits)
+
         response = requests.post(
             endpoint,
             auth=self._get_auth(),
             json=data
         )
+
         response.raise_for_status()
         return response.json()
 
-    def update_product(self, product_id, data):
+    def update_product(self, wp_id, data):
         """Обновляет продукт"""
-        endpoint = f"{self.url}/wp-json/{self.api_version}/products/{product_id}"
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/{wp_id}"
         response = requests.put(
             endpoint,
             auth=self._get_auth(),
@@ -138,11 +138,28 @@ class WooCommerceAPI:
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/{product_id}"
         response = requests.delete(
             endpoint,
-            auth=self._get_auth()
+            auth=self._get_auth(),
+            params={"force": True}
         )
+
         response.raise_for_status()
         return response.json()
 
     def cat_processor(self, category):
         """Обрабатывает категорию"""
         print(category)
+
+    def check_sku_exists(self, sku):
+        """Проверяет, существует ли товар с указанным SKU"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products"
+        response = requests.get(
+            endpoint,
+            auth=self._get_auth(),
+            params={'sku': sku}
+        ).json()
+
+        if len(response) > 0:
+            product_id = response[0]["id"]
+            return product_id
+        else:
+            return False

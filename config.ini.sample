@@ -1,0 +1,15 @@
+[tools]
+api_url = 
+params = id,parentid1,parentid2,parentid3,parentid4,parentid_name1,parentid_name2,parentid_name3,parentid_name4,category_id,okdp,name,vendor_code,brand,price,price_recommended,price_recommended_713,warehouse_main,warehouse_add,warehouse_rb,warehouse_all,delivery,vat,barcode,barcode_old,country,description,prop_new,prop_purpose,prop_warranty,prop_shelf_life,prop_quantity_min,prop_length,prop_width,prop_height,prop_weight_gross,prop_unit,prop_multiplicity,prop_multiplicity_box,prop_tnved,prop_codecustom,prop_manufacturer,prop_importer,prop_713,prop_promo_price,prop_promo_date_finish,media_img,media_video,timedata
+
+[wp]
+wp_url = https://tools.z1.by
+wp_img_storage = /img_storage/
+local_img_storage = /home/username/1/imr_arhive/
+wp_key = 
+wp_secret = 
+wp_price_discount = 4
+
+[telegram]
+token = 
+chat_id = 

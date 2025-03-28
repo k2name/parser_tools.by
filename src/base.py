@@ -242,6 +242,36 @@ class sql:
             print(f"Неизвестная ошибка: {e}")
             return False
 
+    def update_product_wpid(self, id, wp_id):
+        if not self.conn:
+            self.connect()
+
+        product = {'wp_id': wp_id, 'status': 'published'}
+
+        # Формируем SQL-запрос
+        set_clause = ', '.join([f"{key} = ?" for key in product.keys()])  # SET column1 = ?, column2 = ?
+        sql = f"UPDATE products SET {set_clause} WHERE id = ?;"
+
+        # Значения для обновления (в том же порядке, что и в SET) + id для WHERE
+        values = tuple(product.values()) + (id,)
+
+        # Выполняем запрос
+        cur = self.conn.cursor()
+        try:
+            cur.execute(sql, values)
+            self.conn.commit()
+            cur.close()
+            return True
+        except sqlite3.IntegrityError as e:
+            print(f"Ошибка целостности данных: {e}")
+            return False
+        except sqlite3.OperationalError as e:
+            print(f"Ошибка выполнения запроса: {e}")
+            return False
+        except Exception as e:
+            print(f"Неизвестная ошибка: {e}")
+            return False
+
 
     def update_product_status(self, id, global_timestamp, status='updated'):
         # Проверяем, что соединение с базой данных установлено
@@ -341,3 +371,20 @@ class sql:
         cur.close()
 
         return result
+
+    def delete_product(self, id):
+        if not self.conn:
+            self.connect()
+
+        # Формируем SQL-запрос
+        sql = "DELETE FROM products WHERE id = ?;"
+
+        # Выполняем запрос
+        try:
+            cur = self.conn.cursor()
+            cur.execute(sql, (id,))
+            self.conn.commit()
+            cur.close()
+            return True
+        except:
+            return False

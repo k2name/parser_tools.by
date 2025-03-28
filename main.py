@@ -27,6 +27,9 @@ params = cfg.get('tools', 'params').split(',')
 wp_url = cfg.get('wp', 'wp_url')
 wp_key = cfg.get('wp', 'wp_key')
 wp_secret = cfg.get('wp', 'wp_secret')
+wp_discount = int(cfg.get('wp', 'wp_price_discount'))
+wp_img_storage = cfg.get('wp', 'wp_img_storage')
+local_img_storage = cfg.get('wp', 'local_img_storage')
 
 def download_data(url):
 
@@ -350,8 +353,155 @@ def compare_wp_categories():
     db_categories.clear()
 
 
+def product_generator(product):
+    global db
+
+    # Рассчитываем цену с учетом скидки
+    price = product['price'] * (1 - wp_discount / 100)
+    price = round(price, 2)
+    price = str(price)
+
+    # Находим ID категории
+    result = db.get_category_by_id(product['category_id'])
+    if result:
+        wp_group_id = int(result['wp_id'])
+    else:
+        return False
+
+    # Обрабатываем атрибуты
+    attributes = []
+
+    if 'prop_length' in product and product['prop_length'] != None and product['prop_length'] != '':
+        attributes.append({'name': 'Длина', 'options': [str(product['prop_length'])], 'visible': True, 'variation': False})
+
+    if 'brand' in product and product['brand'] != None and product['brand'] != '':
+        attributes.append({'name': 'Брэнд', 'options': [product['brand']], 'visible': True, 'variation': False})
+
+    if 'vendor_code' in product and product['vendor_code'] != None and product['vendor_code'] != '':
+        attributes.append({'name': 'Артикул производителя', 'options': [product['vendor_code']], 'visible': True, 'variation': False})
+
+    if 'prop_purpose' in product and product['prop_purpose'] != None and product['prop_purpose'] != '':
+        attributes.append({'name': 'Применение', 'options': [product['prop_purpose']], 'visible': True, 'variation': False})
+
+    if 'prop_warranty' in product and product['prop_warranty'] != None and product['prop_warranty'] != '':
+        attributes.append({'name': 'Гарантия', 'options': [str(product['prop_warranty'])], 'visible': True, 'variation': False})
+
+    if 'prop_unit' in product and product['prop_unit'] != None and product['prop_unit'] != '':
+        attributes.append({'name': 'Единица измерения', 'options': [product['prop_unit']], 'visible': True, 'variation': False})
+
+    if 'prop_multiplicity' in product and product['prop_multiplicity'] != None and product['prop_multiplicity'] != '':
+        attributes.append({'name': 'Кратность товара', 'options': [str(product['prop_multiplicity'])], 'visible': True, 'variation': False})
+
+    if 'prop_quantity_min' in product and product['prop_quantity_min'] != None and product['prop_quantity_min'] != '':
+        if product['prop_quantity_min'] != '0':
+            attributes.append({'name': 'Минимальное количество для продажи', 'options': [str(product['prop_quantity_min'])], 'visible': True, 'variation': False})
+        else:
+            attributes.append({'name': 'Минимальное количество для продажи', 'options': ['1'], 'visible': True, 'variation': False})
+
+    if 'prop_multiplicity_box' in product and product['prop_multiplicity_box'] != None and product['prop_multiplicity_box'] != '':
+        attributes.append({'name': 'Количество в упаковке', 'options': [str(product['prop_multiplicity_box'])], 'visible': True, 'variation': False})
+
+    if 'country' in product and product['country'] != None and product['country'] != '':
+        attributes.append({'name': 'Страна производства', 'options': [product['country']], 'visible': True, 'variation': False})
+
+    if 'prop_manufacturer' in product and product['prop_manufacturer'] != None and product['prop_manufacturer'] != '':
+        attributes.append({'name': 'Производитель', 'options': [product['prop_manufacturer']], 'visible': True, 'variation': False})
+
+    if 'prop_importer' in product and product['prop_importer'] != None and product['prop_importer'] != '':
+        attributes.append({'name': 'Импортер', 'options': [product['prop_importer']], 'visible': True, 'variation': False})
+
+    if 'barcode' in product and product['barcode'] != None and product['barcode'] != '':
+        attributes.append({'name': 'Штрихкод', 'options': [str(product['barcode'])], 'visible': True, 'variation': False})
+
+    # Dimensions
+    dimensions = {}
+    if 'prop_length' in product and product['prop_length'] != None and product['prop_length'] != '' and product['prop_length'] != '0':
+        dimensions['length'] = str(product['prop_length'])
+
+    if 'prop_width' in product and product['prop_width'] != None and product['prop_width'] != '' and product['prop_width'] != '0':
+        dimensions['width'] = str(product['prop_width'])
+
+    if 'prop_height' in product and product['prop_height'] != None and product['prop_height'] != '' and product['prop_height'] != '0':
+        dimensions['height'] = str(product['prop_height'])
+
+    # Обрабатываем картинки
+    images = []
+    if 'media_img' in product and product['media_img'] != None and product['media_img'] != '':
+        images.append({'src': product['media_img']})
+    path = local_img_storage + product['okdp'] + '/'
+    if os.path.exists(path):
+        for file in os.listdir(path):
+            if file.endswith(".jpg") and file != '0.jpg':
+                images.append({'src': wp_url + wp_img_storage + product['okdp'] + '/' + file})
+
+
+    # Обрабатываем описание
+    if product['description'] != None and product['description'] != '' and product['description'] != '---':
+        description = product['description']
+        html_description = description.replace("\r\n", "<br>").replace("\n", "<br>")
+    else:
+        html_description = 'Описание товара отсутствует.'
+
+    # Генерируем JSON
+    data = {
+        'name': product['name'],
+        'description': html_description,
+        'type': 'simple',
+        'regular_price': price,
+        'sku': product['okdp'],
+        'categories': [
+            {'id': wp_group_id}
+        ]
+    }
+
+    if 'prop_weight_gross' in product and product['prop_weight_gross'] != None and product['prop_weight_gross'] != '':
+        data['weight'] = str(product['prop_weight_gross'])
+
+    if len(attributes) > 0:
+        data['attributes'] = attributes
+
+    if len(images) > 0:
+        data['images'] = images
+
+    if len(dimensions) > 0:
+        data['dimensions'] = dimensions
+
+    return data
+
+
 def compare_wp_products():
-    pass
+    global db
+    global wp
+
+    # собираем товары из БД
+    db_products = rows_to_dict(db.get_all_products())
+    for id in db_products:
+        status = db_products[id]['status']
+        if status == 'new':
+            print(f"Добавляем новый продукт: {db_products[id]['name']}")
+            product_json = product_generator(db_products[id])
+            result = wp.create_product(product_json)
+            if result:
+                wp_id = int(result['id'])
+                db.update_product_wpid(id, wp_id)
+        elif status == 'updated':
+            print(f"Обновляем продукт: {db_products[id]['name']}")
+            product_json = product_generator(db_products[id])
+            result = wp.update_product(db_products[id]['wp_id'], product_json)
+            if result:
+                wp_id = result['id']
+                db.update_product_wpid(id, wp_id)
+        else:
+            pass
+
+        # Обрабатываем продукты
+        if db_products[id]['timedata'] != global_timestamp:
+            result = db.delete_product(id)
+            if db_products[id]['wp_id'] != None:
+                print(f"Удаляем продукт: {db_products[id]['name']}")
+                wp.delete_product(db_products[id]['wp_id'])
+
+    db_products.clear()
 
 
 def main():
