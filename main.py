@@ -454,7 +454,7 @@ def product_generator(product):
         ]
     }
 
-    if 'prop_weight_gross' in product and product['prop_weight_gross'] != None and product['prop_weight_gross'] != '':
+    if 'prop_weight_gross' in product and product['prop_weight_gross'] != None and product['prop_weight_gross'] != '' and product['prop_weight_gross'] != '0':
         data['weight'] = str(product['prop_weight_gross'])
 
     if len(attributes) > 0:
