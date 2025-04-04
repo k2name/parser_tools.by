@@ -15,7 +15,7 @@ from src.base import sql
 from src.woocommerce import WooCommerceAPI
 import xml.etree.ElementTree as ET
 
-use_local = False
+use_local = True
 clear_db = False
 global_timestamp = int(time.time())
 
