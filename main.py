@@ -426,13 +426,15 @@ def product_generator(product):
 
     # Обрабатываем картинки
     images = []
+    i = 0
     if 'media_img' in product and product['media_img'] != None and product['media_img'] != '':
-        images.append({'src': product['media_img']})
+        images.append({'src': product['media_img'], 'position': i})
     path = local_img_storage + product['okdp'] + '/'
     if os.path.exists(path):
         for file in os.listdir(path):
             if file.endswith(".jpg") and file != '0.jpg':
-                images.append({'src': wp_url + wp_img_storage + product['okdp'] + '/' + file})
+                i += 1
+                images.append({'src': wp_url + wp_img_storage + product['okdp'] + '/' + file, 'position': i})
 
 
     # Обрабатываем описание
