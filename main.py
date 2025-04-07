@@ -484,15 +484,15 @@ def compare_wp_products():
         if status == 'new':
             print(f"Добавляем новый продукт: {db_products[id]['name']}")
             product_json = product_generator(db_products[id])
-            result = wp.create_product(product_json)
-            if result:
+            status_code, result = wp.create_product(product_json)
+            if status_code == 201:
                 wp_id = int(result['id'])
                 db.update_product_wpid(id, wp_id)
         elif status == 'updated':
             print(f"Обновляем продукт: {db_products[id]['name']}")
             product_json = product_generator(db_products[id])
-            result = wp.update_product(db_products[id]['wp_id'], product_json)
-            if result:
+            status_code, result = wp.update_product(db_products[id]['wp_id'], product_json)
+            if status_code == 201:
                 wp_id = result['id']
                 db.update_product_wpid(id, wp_id)
         else:

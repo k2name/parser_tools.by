@@ -120,7 +120,10 @@ class WooCommerceAPI:
         )
 
         response.raise_for_status()
-        return response.json()
+        if response.status_code == 201:
+            return response.status_code, response.json()
+        else:
+            return response.status_code, False
 
     def update_product(self, wp_id, data):
         """Обновляет продукт"""
@@ -131,7 +134,10 @@ class WooCommerceAPI:
             json=data
         )
         response.raise_for_status()
-        return response.json()
+        if response.status_code == 201:
+            return response.status_code, response.json()
+        else:
+            return response.status_code, False
 
     def delete_product(self, product_id):
         """Удаляет продукт"""
