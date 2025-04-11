@@ -112,32 +112,44 @@ class WooCommerceAPI:
         if check_exits:
             print(f"Товар с SKU {data['sku']} уже существует.")
             self.delete_product(check_exits)
+        try:
+            response = requests.post(
+                endpoint,
+                auth=self._get_auth(),
+                json=data
+            )
 
-        response = requests.post(
-            endpoint,
-            auth=self._get_auth(),
-            json=data
-        )
+            response.raise_for_status()
+            if response.status_code == 201:
+                return response.status_code, response.json()
+            else:
+                return response.status_code, False
 
-        response.raise_for_status()
-        if response.status_code == 201:
-            return response.status_code, response.json()
-        else:
-            return response.status_code, False
+        except requests.exceptions.RequestException as e:
+            # Обработка ошибок соединения
+            print(f"Ошибка при создании продукта: {e}")
+            return None, False
+
 
     def update_product(self, wp_id, data):
         """Обновляет продукт"""
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/{wp_id}"
-        response = requests.put(
-            endpoint,
-            auth=self._get_auth(),
-            json=data
-        )
-        response.raise_for_status()
-        if response.status_code == 201:
-            return response.status_code, response.json()
-        else:
-            return response.status_code, False
+        try:
+            response = requests.put(
+                endpoint,
+                auth=self._get_auth(),
+                json=data
+            )
+            response.raise_for_status()
+            if response.status_code == 201:
+                return response.status_code, response.json()
+            else:
+                return response.status_code, False
+
+        except requests.exceptions.RequestException as e:
+            # Обработка ошибок соединения
+            print(f"Ошибка при создании продукта: {e}")
+            return None, False
 
     def delete_product(self, product_id):
         """Удаляет продукт"""

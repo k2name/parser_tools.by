@@ -242,6 +242,10 @@ def compare_categories(categories_from_file, categories_from_db):
     categories_from_db.clear()
 
 
+def compare_dicts(dict1, dict2, fields):
+    return all(dict1.get(field) == dict2.get(field) for field in fields)
+
+
 def compare_products(products_from_file, products_from_db):
     bar = tqdm.tqdm(total=len(products_from_file))
     compare_idents = []
@@ -256,8 +260,14 @@ def compare_products(products_from_file, products_from_db):
                 print(f'Ошибка при добавлении продукта')
                 print(products_from_file[product_id])
         else:
-            if products_from_file[product_id]['category_id'] != products_from_db[product_id]['category_id']:
-                print(f'Продукт {products_from_file[product_id]["name"]} был обновлен.')
+            pr_file = products_from_file[product_id]
+            pr_db = products_from_db[product_id]
+            dict2compare = ['barcode', 'brand', 'country', 'description', 'media_img', 'name', 'price', 'prop_importer', 'prop_manufacturer', 'prop_purpose', 'prop_warranty']
+            if compare_dicts(pr_file, pr_db, dict2compare):
+                # продукты одинаковые
+                compare_idents.append(product_id)
+            else:
+                #print(f'Продукт {products_from_file[product_id]["name"]} был обновлен.')
                 result = db.update_products(products_from_file[product_id], global_timestamp)
                 if result:
                     pass
@@ -265,8 +275,7 @@ def compare_products(products_from_file, products_from_db):
                 else:
                     print(f'Ошибка при обновлении продукта')
                     print(products_from_file[product_id])
-            else:
-                compare_idents.append(product_id)
+
 
         bar.update(1)
 
@@ -356,10 +365,16 @@ def compare_wp_categories():
 def product_generator(product):
     global db
 
-    # Рассчитываем цену с учетом скидки
-    price = product['price'] * (1 - wp_discount / 100)
-    price = round(price, 2)
-    price = str(price)
+    # Проверяем, что product['price'] существует и является числом
+    if 'price' in product and isinstance(product['price'], (int, float)):
+        # Рассчитываем цену с учетом скидки
+        price = product['price'] * (1 - wp_discount / 100)
+        price = round(price, 2)
+        price = str(price)
+    else:
+        # Обработка случая, когда price отсутствует или не является числом
+        print("Поле 'price' отсутствует или имеет некорректный формат. Используется значение по умолчанию.")
+        price = "0.00"  # Значение по умолчанию
 
     # Находим ID категории
     result = db.get_category_by_id(product['category_id'])
@@ -485,14 +500,14 @@ def compare_wp_products():
             print(f"Добавляем новый продукт: {db_products[id]['name']}")
             product_json = product_generator(db_products[id])
             status_code, result = wp.create_product(product_json)
-            if status_code == 201:
+            if status_code is not None and status_code == 201:
                 wp_id = int(result['id'])
                 db.update_product_wpid(id, wp_id)
         elif status == 'updated':
             print(f"Обновляем продукт: {db_products[id]['name']}")
             product_json = product_generator(db_products[id])
             status_code, result = wp.update_product(db_products[id]['wp_id'], product_json)
-            if status_code == 201:
+            if status_code is not None and status_code == 201:
                 wp_id = result['id']
                 db.update_product_wpid(id, wp_id)
         else:
@@ -543,7 +558,7 @@ def main():
     # Отправляем в проверку продукты
     compare_products(file_products, db_products)
 
-    # Начинаем работать с Wordpress
+    # # Начинаем работать с Wordpress
     wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
     if wp.connect():
         compare_wp_categories()
