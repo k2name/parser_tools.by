@@ -13,3 +13,9 @@ wp_price_discount = 4
 [telegram]
 token = 
 chat_id = 
+
+[mysql]
+host = localhost
+user = 
+password = 
+database = 

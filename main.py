@@ -12,10 +12,11 @@ from src.file import io
 from src.help import k2
 from src.telegramm import TelegramBot
 from src.base import sql
+from src.mysqldb import MySQLReader
 from src.woocommerce import WooCommerceAPI
 import xml.etree.ElementTree as ET
 
-use_local = True
+use_local = False
 clear_db = False
 global_timestamp = int(time.time())
 
@@ -30,6 +31,12 @@ wp_secret = cfg.get('wp', 'wp_secret')
 wp_discount = int(cfg.get('wp', 'wp_price_discount'))
 wp_img_storage = cfg.get('wp', 'wp_img_storage')
 local_img_storage = cfg.get('wp', 'local_img_storage')
+mysql_config = {
+    "host": cfg.get('mysql', 'host'),
+    "user": cfg.get('mysql', 'user'),
+    "password": cfg.get('mysql', 'password'),
+    "database": cfg.get('mysql', 'database')
+}
 
 def download_data(url):
 
@@ -104,6 +111,10 @@ def parse_large_xml(file_path):
             current_product["parentid4"] = convert_value(current_product.get("parentid4"), int)
             current_product["price"] = convert_value(current_product.get("price"), float)
             current_product["price_recommended"] = convert_value(current_product.get("price_recommended"), float)
+            if current_product["price"] == None:
+                current_product["price"] = current_product["price_recommended"]
+            if current_product["price"] == None:
+                current_product["price"] = 0.0
             current_product["price_recommended_713"] = convert_value(current_product.get("price_recommended_713"), float)
             current_product["vat"] = convert_value(current_product.get("vat"), int)
             current_product["barcode"] = convert_value(current_product.get("barcode"), int)
@@ -279,11 +290,13 @@ def compare_products(products_from_file, products_from_db):
 
         bar.update(1)
 
-    bar.close()
     bar.clear()
+    bar.close()
+
     
     # обновляем время в продуктах где не было изменений
     if len(compare_idents) > 0:
+        pass
         result = db.update_products_time(compare_idents, global_timestamp)
     if result:
         print(f'Время товаров обновлено.')
@@ -486,43 +499,98 @@ def product_generator(product):
     return data
 
 
+def get_chunks(array, chunk_size=50):
+    """Разбивает массив на порции по chunk_size элементов"""
+    index = 0
+    while index < len(array):
+        yield array[index:index + chunk_size]
+        index += chunk_size
+
+
 def compare_wp_products():
     global db
     global wp
 
     many_id_2del = []
+    all_id = []
 
     # собираем товары из БД
+    # db_products = rows_to_dict(db.get_all_products())
+    # for id in db_products:
+    #     # проверяем статус и реагируем на него
+    #     status = db_products[id]['status']
+    #     if status == 'new':
+    #         print(f"Добавляем новый продукт: {db_products[id]['name']}")
+    #         product_json = product_generator(db_products[id])
+    #         status_code, result = wp.create_product(product_json)
+    #         if status_code is not None and status_code == 201:
+    #             wp_id = int(result['id'])
+    #             db.update_product_wpid(id, wp_id)
+    #     elif status == 'updated':
+    #         print(f"Обновляем продукт: {db_products[id]['name']}")
+    #         product_json = product_generator(db_products[id])
+    #         status_code, result = wp.update_product(db_products[id]['wp_id'], product_json)
+    #         if status_code is not None and status_code == 201:
+    #             wp_id = result['id']
+    #             db.update_product_wpid(id, wp_id)
+    #     else:
+    #         pass
+    #
+    #     # Обрабатываем продукты
+    #     if db_products[id]['timedata'] != global_timestamp:
+    #         result = db.delete_product(id)
+    #         if db_products[id]['wp_id'] != None:
+    #             print(f"Удаляем продукт: {db_products[id]['name']}")
+    #             many_id_2del.append(db_products[id]['wp_id'])
+    #             #wp.delete_product(db_products[id]['wp_id'])
+    #
+    # wp.batch_delete_product(many_id_2del)
+    # many_id_2del.clear()
+    # db_products.clear()
+
+    # Функция удаления из woocommerce продуктов, которых нет в БД
+    # Выбираем все продукты из БД заново.
+    all_wpid = []
     db_products = rows_to_dict(db.get_all_products())
     for id in db_products:
-        status = db_products[id]['status']
-        if status == 'new':
-            print(f"Добавляем новый продукт: {db_products[id]['name']}")
-            product_json = product_generator(db_products[id])
-            status_code, result = wp.create_product(product_json)
-            if status_code is not None and status_code == 201:
-                wp_id = int(result['id'])
-                db.update_product_wpid(id, wp_id)
-        elif status == 'updated':
-            print(f"Обновляем продукт: {db_products[id]['name']}")
-            product_json = product_generator(db_products[id])
-            status_code, result = wp.update_product(db_products[id]['wp_id'], product_json)
-            if status_code is not None and status_code == 201:
-                wp_id = result['id']
-                db.update_product_wpid(id, wp_id)
+        if db_products[id]['wp_id'] != None:
+            all_wpid.append(db_products[id]['wp_id'])
         else:
+            #### тут добавить логику удаления из БД того что не опубликовано или менять статус на new. Надо подумать
             pass
-
-        # Обрабатываем продукты
-        if db_products[id]['timedata'] != global_timestamp:
-            result = db.delete_product(id)
-            if db_products[id]['wp_id'] != None:
-                print(f"Удаляем продукт: {db_products[id]['name']}")
-                many_id_2del.append(db_products[id]['wp_id'])
-                #wp.delete_product(db_products[id]['wp_id'])
-
-    wp.batch_delete_product(many_id_2del)
     db_products.clear()
+
+    '''
+    wp_products = wp.get_all_products() # старый метод сбора данных через API WooCommerce
+    
+    Это длинный путь. Надо наверное переделать на прямую работу с БД mysql
+    Вот запрос для поиска из описаний всех товаров в которых указан SKU
+    SELECT DISTINCT `post_id` FROM `z1_postmeta` WHERE `meta_key` = '_sku'; 
+    Результатом будет массив wp_id значений которые уже можно сравнивать с БД и что-то с ниими делать
+    '''
+
+    with MySQLReader(**mysql_config) as reader:
+        wp_products = reader.get_distinct_post_ids_by_sku()
+
+    if wp_products is None:
+        print("Произошла ошибка при выполнении запроса.")
+    elif wp_products is False:
+        print("Нет данных (получено 0 строк).")
+    else:
+        for wp_id in wp_products:
+            if wp_id not in all_wpid:
+                many_id_2del.append(wp_id)
+            else:
+                # удаляем имеющееся значение из массива поиска. Облегчаем массив
+                all_wpid.remove(wp_id)
+        if len(many_id_2del) > 0:
+            for chunk in get_chunks(many_id_2del, 50):
+                response = wp.batch_delete_product(chunk)
+                if response:
+                    print(f"Удалено продуктов: {len(chunk)}")
+                else:
+                    print("Удаление продуктов не удалось.")
+            many_id_2del.clear()
 
 
 def main():
@@ -559,10 +627,10 @@ def main():
     compare_products(file_products, db_products)
 
     # # Начинаем работать с Wordpress
-    wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
-    if wp.connect():
-        compare_wp_categories()
-        compare_wp_products()
+    # wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
+    # if wp.connect():
+    #     compare_wp_categories()
+    #     compare_wp_products()
 
 
 
