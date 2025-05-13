@@ -512,42 +512,51 @@ def compare_wp_products():
     global wp
 
     many_id_2del = []
-    all_id = []
 
     # собираем товары из БД
-    # db_products = rows_to_dict(db.get_all_products())
-    # for id in db_products:
-    #     # проверяем статус и реагируем на него
-    #     status = db_products[id]['status']
-    #     if status == 'new':
-    #         print(f"Добавляем новый продукт: {db_products[id]['name']}")
-    #         product_json = product_generator(db_products[id])
-    #         status_code, result = wp.create_product(product_json)
-    #         if status_code is not None and status_code == 201:
-    #             wp_id = int(result['id'])
-    #             db.update_product_wpid(id, wp_id)
-    #     elif status == 'updated':
-    #         print(f"Обновляем продукт: {db_products[id]['name']}")
-    #         product_json = product_generator(db_products[id])
-    #         status_code, result = wp.update_product(db_products[id]['wp_id'], product_json)
-    #         if status_code is not None and status_code == 201:
-    #             wp_id = result['id']
-    #             db.update_product_wpid(id, wp_id)
-    #     else:
-    #         pass
-    #
-    #     # Обрабатываем продукты
-    #     if db_products[id]['timedata'] != global_timestamp:
-    #         result = db.delete_product(id)
-    #         if db_products[id]['wp_id'] != None:
-    #             print(f"Удаляем продукт: {db_products[id]['name']}")
-    #             many_id_2del.append(db_products[id]['wp_id'])
-    #             #wp.delete_product(db_products[id]['wp_id'])
-    #
-    # wp.batch_delete_product(many_id_2del)
-    # many_id_2del.clear()
-    # db_products.clear()
+    db_products = rows_to_dict(db.get_all_products())
+    for id in db_products:
+        # проверяем статус и реагируем на него
+        status = db_products[id]['status']
+        if status == 'new':
+            print(f"Добавляем новый продукт: {db_products[id]['name']}")
+            product_json = product_generator(db_products[id])
+            status_code, result = wp.create_product(product_json)
+            if status_code is not None and status_code == 201:
+                wp_id = int(result['id'])
+                db.update_product_wpid(id, wp_id)
+        elif status == 'updated':
+            print(f"Обновляем продукт: {db_products[id]['name']}")
+            product_json = product_generator(db_products[id])
+            status_code, result = wp.update_product(db_products[id]['wp_id'], product_json)
+            if status_code is not None and status_code == 201:
+                wp_id = result['id']
+                db.update_product_wpid(id, wp_id)
+        else:
+            pass
 
+        # Удаляем продукты из sqlite. Создаем массив для удаления в woocoomerce
+        if db_products[id]['timedata'] != global_timestamp:
+            result = db.delete_product(id)
+            if db_products[id]['wp_id'] != None:
+                print(f"Удаляем продукт: {db_products[id]['name']}")
+                many_id_2del.append(db_products[id]['wp_id'])
+                #wp.delete_product(db_products[id]['wp_id'])
+
+    # удаляем продукты из woocommerce
+    if len(many_id_2del) > 0:
+        for chunk in get_chunks(many_id_2del, 50):
+            response = wp.batch_delete_product(chunk)
+            if response:
+                print(f"Удалено продуктов: {len(chunk)}")
+            else:
+                print("Удаление продуктов не удалось.")
+        many_id_2del.clear()
+    db_products.clear()
+
+    '''
+    Дальше большой кусок работы по проверке продуктов на сайте. Они точно есть в нашей БД и актуальны?
+    '''
     # Функция удаления из woocommerce продуктов, которых нет в БД
     # Выбираем все продукты из БД заново.
     all_wpid = []
