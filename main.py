@@ -636,10 +636,10 @@ def main():
     compare_products(file_products, db_products)
 
     # # Начинаем работать с Wordpress
-    # wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
-    # if wp.connect():
-    #     compare_wp_categories()
-    #     compare_wp_products()
+    wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
+    if wp.connect():
+        compare_wp_categories()
+        compare_wp_products()
 
 
 
