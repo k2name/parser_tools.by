@@ -196,6 +196,7 @@ class WooCommerceAPI:
         if check_exits:
             print(f"Товар с SKU {data['sku']} уже существует.")
             self.delete_product(check_exits)
+
         try:
             response = requests.post(
                 endpoint,
@@ -233,7 +234,7 @@ class WooCommerceAPI:
 
         except requests.exceptions.RequestException as e:
             # Обработка ошибок соединения
-            print(f"Ошибка при создании продукта: {e}")
+            print(f"Ошибка при обновлении продукта: {e}")
             return None, False
 
     def delete_product(self, product_id):

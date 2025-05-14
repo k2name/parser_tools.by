@@ -9,7 +9,7 @@ import tqdm
 import configparser
 import requests
 from src.file import io
-from src.help import k2
+from src.help import k2, TextProcessor
 from src.telegramm import TelegramBot
 from src.base import sql
 from src.mysqldb import MySQLReader
@@ -19,6 +19,7 @@ import xml.etree.ElementTree as ET
 use_local = False
 clear_db = False
 global_timestamp = int(time.time())
+PID_FILE = "work.pid"
 
 # Загружаем настройки
 cfg = configparser.ConfigParser()
@@ -37,6 +38,42 @@ mysql_config = {
     "password": cfg.get('mysql', 'password'),
     "database": cfg.get('mysql', 'database')
 }
+
+
+def pid_lock():
+    if os.path.exists(PID_FILE):
+        with open(PID_FILE, 'r') as f:
+            pid = f.read().strip()
+            if pid.isdigit():
+                pid = int(pid)
+                try:
+                    # Отправляем 0 сигнал процессу — проверяем его существование
+                    os.kill(pid, 0)
+                    print(f"[ERROR] Процесс с PID={pid} уже запущен.")
+                    sys.exit(0)
+                except OSError:
+                    # Процесс не существует — можно продолжать
+                    print(f"[WARNING] Старый PID-файл найден, но процесс {pid} не активен.")
+
+    # Создаем новый PID-файл
+    try:
+        with open(PID_FILE, 'w') as f:
+            current_pid = os.getpid()
+            f.write(str(current_pid))
+            print(f"Записан PID: {current_pid}")
+    except Exception as e:
+        print(f"[ERROR] Не могу создать PID-файл: {e}")
+        sys.exit(1)
+
+
+def pid_unlock():
+    if os.path.exists(PID_FILE):
+        try:
+            os.remove(PID_FILE)
+            print("PID-файл удален.")
+        except Exception as e:
+            print(f"[WARNING] Не удалось удалить PID-файл: {e}")
+
 
 def download_data(url):
 
@@ -551,18 +588,21 @@ def compare_wp_products():
 
     # собираем товары из БД
     db_products = rows_to_dict(db.get_all_products())
+    max_len = len(db_products)
+    cur_len = 0
     for id in db_products:
+        cur_len += 1
         # проверяем статус и реагируем на него
         status = db_products[id]['status']
         if status == 'new':
-            print(f"Добавляем новый продукт: {db_products[id]['name']}")
+            print(f"{cur_len}/{max_len} Добавляем новый продукт: {db_products[id]['name']}")
             product_json = product_generator(db_products[id])
             status_code, result = wp.create_product(product_json)
             if status_code is not None and status_code == 201:
                 wp_id = int(result['id'])
                 db.update_product_wpid(id, wp_id)
         elif status == 'updated':
-            print(f"Обновляем продукт: {db_products[id]['name']}")
+            print(f"{cur_len}/{max_len} Обновляем продукт: {db_products[id]['name']}")
             product_json = product_generator(db_products[id])
             status_code, result = wp.update_product(db_products[id]['wp_id'], product_json)
             if status_code is not None and status_code == 201:
@@ -575,7 +615,7 @@ def compare_wp_products():
         if db_products[id]['timedata'] != global_timestamp:
             result = db.delete_product(id)
             if db_products[id]['wp_id'] != None:
-                print(f"Удаляем продукт: {db_products[id]['name']}")
+                print(f"{cur_len}/{max_len}  Удаляем продукт: {db_products[id]['name']}")
                 many_id_2del.append(db_products[id]['wp_id'])
                 #wp.delete_product(db_products[id]['wp_id'])
 
@@ -584,9 +624,9 @@ def compare_wp_products():
         for chunk in get_chunks(many_id_2del, 50):
             response = wp.batch_delete_product(chunk)
             if response:
-                print(f"Удалено продуктов: {len(chunk)}")
+                print(f"Удалено продуктов штатно: {len(chunk)}")
             else:
-                print("Удаление продуктов не удалось.")
+                print("Удаление продуктов штатно не удалось.")
         many_id_2del.clear()
     db_products.clear()
 
@@ -632,9 +672,9 @@ def compare_wp_products():
             for chunk in get_chunks(many_id_2del, 50):
                 response = wp.batch_delete_product(chunk)
                 if response:
-                    print(f"Удалено продуктов: {len(chunk)}")
+                    print(f"Удалено продуктов mysql: {len(chunk)}")
                 else:
-                    print("Удаление продуктов не удалось.")
+                    print("Удаление продуктов mysql не удалось.")
             many_id_2del.clear()
 
 
@@ -678,8 +718,11 @@ def main():
     #     compare_wp_products()
 
 
-
 if __name__ == '__main__':
     os.environ['TERM'] = 'xterm'  # Установка переменной TERM
     os.system('clear')
-    main()
+    pid_lock()
+    try:
+        main()
+    finally:
+        pid_unlock()
