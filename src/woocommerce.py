@@ -113,8 +113,35 @@ class WooCommerceAPI:
         data = {
             'name': name,
             'description': description,
+            "visibility": "visible",
             'image': image
         }
+
+        response = requests.put(
+            endpoint,
+            auth=self._get_auth(),
+            json=data,
+            timeout=(self.connection_timeout, self.read_timeout)
+        )
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            print(f"Ошибка при создании категории: {e}")
+            print(f"Текст ответа: {response.text}")  # Выводим детали ошибки
+            raise
+        return response.json()
+
+    def update_category_visibility(self, wp_id, visibility=True):
+        """Обновляет категорию"""
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories/{wp_id}"
+        if visibility:
+            data = {
+                "visibility": "visible"
+            }
+        else:
+            data = {
+                "visibility": "hidden"
+            }
 
         response = requests.put(
             endpoint,

@@ -129,6 +129,31 @@ class sql:
             return False
 
 
+    def update_many_categories_status(self, ids, status='updated', ):
+        if not ids:
+            return False
+
+        if not self.conn:
+            self.connect()
+
+        placeholders = ', '.join(['?'] * len(ids))  # Создаем плейсхолдеры для каждого id
+        sql = f"UPDATE `categories` SET `status` = ? WHERE id IN ({placeholders});"
+
+        # Значения для обновления: status + список id
+        values = [status] + ids
+
+        try:
+            # Выполняем запрос
+            cur = self.conn.cursor()
+            cur.execute(sql, values)
+            self.conn.commit()
+            cur.close()
+            return True
+        except Exception as e:
+            print(f"Ошибка при обновлении статуса категорий: {e}")
+            return False
+
+
     def delete_categories(self, id):
         if not self.conn:
             self.connect()
@@ -191,12 +216,15 @@ class sql:
             return True
         except sqlite3.IntegrityError as e:
             print(f"Ошибка целостности данных: {e}")
+            print(sql)
             return False
         except sqlite3.OperationalError as e:
             print(f"Ошибка выполнения запроса: {e}")
+            print(sql)
             return False
         except Exception as e:
             print(f"Неизвестная ошибка: {e}")
+            print(sql)
             return False
 
 
@@ -234,13 +262,17 @@ class sql:
             return True
         except sqlite3.IntegrityError as e:
             print(f"Ошибка целостности данных: {e}")
+            print(sql)
             return False
         except sqlite3.OperationalError as e:
             print(f"Ошибка выполнения запроса: {e}")
+            print(sql)
             return False
         except Exception as e:
             print(f"Неизвестная ошибка: {e}")
+            print(sql)
             return False
+
 
     def update_product_wpid(self, id, wp_id):
         if not self.conn:
@@ -293,9 +325,11 @@ class sql:
             return True
         except sqlite3.OperationalError as e:
             print(f"Ошибка выполнения запроса: {e}")
+            print(sql)
             return False
         except Exception as e:
             print(f"Неизвестная ошибка: {e}")
+            print(sql)
             return False
 
 
@@ -332,12 +366,15 @@ class sql:
 
         except sqlite3.IntegrityError as e:
             print(f"Ошибка целостности данных: {e}")
+            print(sql)
             return False
         except sqlite3.OperationalError as e:
             print(f"Ошибка выполнения запроса: {e}")
+            print(sql)
             return False
         except Exception as e:
             print(f"Неизвестная ошибка: {e}")
+            print(sql)
             return False
 
 
@@ -354,7 +391,10 @@ class sql:
         result = cur.fetchone()
         cur.close()
 
-        return result
+        if result:
+            return result
+        else:
+            return False
 
 
     def get_products_by_status(self, status):
@@ -383,6 +423,23 @@ class sql:
         try:
             cur = self.conn.cursor()
             cur.execute(sql, (id,))
+            self.conn.commit()
+            cur.close()
+            return True
+        except:
+            return False
+
+    def delete_product_by_okdp(self, okdp):
+        if not self.conn:
+            self.connect()
+
+        # Формируем SQL-запрос
+        sql = "DELETE FROM products WHERE okdp = ?;"
+
+        # Выполняем запрос
+        try:
+            cur = self.conn.cursor()
+            cur.execute(sql, (okdp,))
             self.conn.commit()
             cur.close()
             return True

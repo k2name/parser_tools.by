@@ -215,40 +215,57 @@ def rows_to_dict(rows, key_column='id'):
 
 
 def compare_categories(categories_from_file, categories_from_db):
+    # Первитчно скрываем не нужные категории. Иначе дальше логическая ошибка
+    id_for_hidden = []
+    for cat_id in categories_from_db:
+        if cat_id not in categories_from_file and categories_from_db[cat_id]['status'] != 'hidden':
+            id_for_hidden.append(cat_id)
+
+    if len(id_for_hidden) > 0:
+        result = db.update_many_categories_status(ids=id_for_hidden, status='hidden')
+        if result:
+            print(f'sqlite: Категории скрыты.')
+        else:
+            print(f'sqlite: Ошибка при скрытии категорий')
+    id_for_hidden.clear()
+
+
     # Сравниваем категории
+    id4unhidden = []
     for cat_id in categories_from_file:
         keys_to_compare = ['name', 'parent_id']
+        # Если категория отсутствует в БД, добавляем
         if cat_id not in categories_from_db:
             result = db.insert_categories(id=categories_from_file[cat_id]['id'], name=categories_from_file[cat_id]['name'], parent_id=categories_from_file[cat_id]['parent_id'])
             if result:
-                pass
-                #print(f'Добавлена категория: {categories_from_file[cat_id]["name"]}')
+                print(f'sqlite: Добавлена категория: {categories_from_file[cat_id]["name"]}')
             else:
-                print(f'Ошибка при добавлении категории')
+                print(f'sqlite: Ошибка при добавлении категории')
                 print(categories_from_file[cat_id])
 
+        # Если категория есть в БД, сравниваем
         elif any(categories_from_file[cat_id][key] != categories_from_db[cat_id][key] for key in keys_to_compare):
             result = db.update_categories(id=cat_id, name=categories_from_file[cat_id]['name'], wp_id=categories_from_db[cat_id]['wp_id'], status='updated', parent_id=categories_from_file[cat_id]['parent_id'])
             if result:
-                pass
-                #print(f'Категория {categories_from_file[cat_id]["name"]} обновлена.')
+                print(f'sqlite: Категория {categories_from_file[cat_id]["name"]} обновлена.')
+                categories_from_db[cat_id]['status'] = 'updated'
             else:
-                print(f'Ошибка при обновлении категории')
+                print(f'sqlite: Ошибка при обновлении категории')
                 print(categories_from_file[cat_id])
 
-    for cat_id in categories_from_db:
-        if cat_id not in categories_from_file:
-            '''
-            Тут надо дописать рекурсивное удаление. Что бы сразу находило все товары в БД по категориям и субкатегориям и удаляло внутри WP. А только потом требуется очистить БД
-            '''
-            result = db.update_categories(id=cat_id, name=categories_from_db[cat_id]['name'], wp_id=categories_from_db[cat_id]['wp_id'], status='deleted', wp_parent_id=categories_from_db[cat_id]['wp_parent_id'], parent_id=categories_from_db[cat_id]['parent_id'])
-            #result = db.delete_categories(id=cat_id)
-            if result:
-                print(f'Категория {categories_from_db[cat_id]["name"]} удалена.')
-            else:
-                print(f'Ошибка при удалении категории')
-                print(categories_from_db[cat_id])
+        # Если категория есть в БД и в файле, но она скрыта
+        elif any(categories_from_file[cat_id][key] == categories_from_db[cat_id][key] for key in keys_to_compare) and categories_from_db[cat_id]['status'] == 'hidden':
+            id4unhidden.append(cat_id)
 
+    if len(id4unhidden) > 0:
+        result = db.update_many_categories_status(ids=id4unhidden, status='unhidden')
+        if result:
+            print(f'sqlite: Категории обновлены.')
+        else:
+            print(f'sqlite: Ошибка при открытии категорий')
+
+    # Очищаем словари
+    id4unhidden.clear()
     categories_from_file.clear()
     categories_from_db.clear()
 
@@ -258,18 +275,33 @@ def compare_dicts(dict1, dict2, fields):
 
 
 def compare_products(products_from_file, products_from_db):
-    bar = tqdm.tqdm(total=len(products_from_file))
+    # bar = tqdm.tqdm(total=len(products_from_file))
+
+    # Из-за ошибки уникальности okdp собираем словарь для сравнения.
+    okdp_db_list = []
+    for id in products_from_db:
+        okdp_db_list.append(products_from_db[id]['okdp'])
+
     compare_idents = []
     # Сравниваем продукты
     for product_id in products_from_file:
         if product_id not in products_from_db:
-            result = db.insert_products(products_from_file[product_id], global_timestamp)
-            if result:
-                pass
-                #print(f'Добавлен продукт: {products_from_file[product_id]["name"]}')
+            if products_from_file[product_id]['okdp'] in okdp_db_list:
+                print(f'Продукт {products_from_file[product_id]['okdp']} уже есть в базе. Удаляем сбойный продукт.')
+                result = db.delete_product_by_okdp(products_from_file[product_id]['okdp'])
+                if result:
+                    print(f'\tПродукт {products_from_file[product_id]['okdp']} удален.')
+                else:
+                    print(f'\tОшибка при удалении продукта')
+                    print(products_from_file[product_id]['okdp'])
             else:
-                print(f'Ошибка при добавлении продукта')
-                print(products_from_file[product_id])
+                result = db.insert_products(products_from_file[product_id], global_timestamp)
+                if result:
+                    #print(f'sqlite: Добавлен продукт: {products_from_file[product_id]["name"]}')
+                    pass
+                else:
+                    print(f'sqlite: Ошибка при добавлении продукта')
+                    print(products_from_file[product_id])
         else:
             pr_file = products_from_file[product_id]
             pr_db = products_from_db[product_id]
@@ -281,27 +313,26 @@ def compare_products(products_from_file, products_from_db):
                 #print(f'Продукт {products_from_file[product_id]["name"]} был обновлен.')
                 result = db.update_products(products_from_file[product_id], global_timestamp)
                 if result:
+                    #print(f'sqlite: Продукт {products_from_file[product_id]["name"]} обновлен.')
                     pass
-                    #print(f'Продукт {products_from_file[product_id]["name"]} обновлен.')
                 else:
-                    print(f'Ошибка при обновлении продукта')
+                    print(f'sqlite: Ошибка при обновлении продукта')
                     print(products_from_file[product_id])
 
 
-        bar.update(1)
-
-    bar.clear()
-    bar.close()
+    #     bar.update(1)
+    #
+    # bar.clear()
+    # bar.close()
 
     
     # обновляем время в продуктах где не было изменений
     if len(compare_idents) > 0:
-        pass
         result = db.update_products_time(compare_idents, global_timestamp)
-    if result:
-        print(f'Время товаров обновлено.')
-    else:
-        print(f'Ошибка при обновлении времени')
+        if result:
+            print(f'sqlite: Время товаров обновлено.')
+        else:
+            print(f'sqlite: Ошибка при обновлении времени')
 
     compare_idents.clear()
     products_from_file.clear()
@@ -350,9 +381,14 @@ def process_categories(categories, wp, wp_parent_id=None):
             if result:
                 db.update_categories(id=category['id'], name=category['name'], status='published', parent_id=category['parent_id'], wp_parent_id=wp_parent_id, wp_id=category['wp_id'])
 
-        # elif category['status'] == 'delete':
-        #     print(f"Удаляем категорию: {category['name']} (ID: {category['id']})")
-        #     wp.delete_category(category)
+        elif category['status'] == 'hidden':
+            print(f"Скрываем категорию: {category['name']} (ID: {category['id']})")
+            wp.update_category_visibility(wp_id=category['wp_id'], visible=False)
+
+        elif category['status'] == 'unhidden':
+            print(f"Возвращаем категорию: {category['name']} (ID: {category['id']})")
+            wp.update_category_visibility(wp_id=category['wp_id'], visible=True)
+            db.update_many_categories_status(ids=[category['id']], status='published')
 
         # Рекурсивно обрабатываем подкатегории
         if 'subcat' in category and isinstance(category['subcat'], dict):
@@ -636,10 +672,10 @@ def main():
     compare_products(file_products, db_products)
 
     # # Начинаем работать с Wordpress
-    wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
-    if wp.connect():
-        compare_wp_categories()
-        compare_wp_products()
+    # wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
+    # if wp.connect():
+    #     compare_wp_categories()
+    #     compare_wp_products()
 
 
 
