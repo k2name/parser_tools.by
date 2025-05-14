@@ -146,7 +146,7 @@ def parse_large_xml(file_path):
             current_product["parentid2"] = convert_value(current_product.get("parentid2"), int)
             current_product["parentid3"] = convert_value(current_product.get("parentid3"), int)
             current_product["parentid4"] = convert_value(current_product.get("parentid4"), int)
-            current_product["price"] = convert_value(current_product.get("price"), float)
+            current_product["price"] = convert_value(current_product.get("price", 0.0), float)
             current_product["price_recommended"] = convert_value(current_product.get("price_recommended"), float)
             if current_product["price"] == None:
                 current_product["price"] = current_product["price_recommended"]
@@ -189,15 +189,20 @@ def parse_large_xml(file_path):
 def get_from_site():
     if not use_local:
         xml_data = download_data(src_url)
-        data = io()
-        # Очищаем текст от спецсимволов
-        cleaned_text = clean_text(xml_data.text)
-        if cleaned_text:
-            data.rewriteto('data.xml', cleaned_text)
-            if data:
-                print('Файл успешно сохранен.')
+        if xml_data:
+            data = io()
+            # Очищаем текст от спецсимволов
+            cleaned_text = clean_text(xml_data.text)
+            if cleaned_text:
+                data.rewriteto('data.xml', cleaned_text)
+                if data:
+                    print('Файл успешно сохранен.')
+                    return parse_large_xml('data.xml')
+        else:
+            print('Не удалось скачать данные с сайта.')
+            return False
 
-    return parse_large_xml('data.xml')
+
 
 
 def parse_filedata(products_from_site):
@@ -696,8 +701,11 @@ def main():
 
     # Получаем данные с сайта или локального файла
     products_from_site = get_from_site()
-    file_categories, file_products = parse_filedata(products_from_site)
-    print(f'Получено {len(file_categories)} категорий и {len(file_products)} продуктов.')
+    if products_from_site:
+        file_categories, file_products = parse_filedata(products_from_site)
+        print(f'Получено {len(file_categories)} категорий и {len(file_products)} продуктов.')
+    else:
+        quit()
 
     # Получаем данные из БД
     # Собираем категории
@@ -712,10 +720,10 @@ def main():
     compare_products(file_products, db_products)
 
     # # Начинаем работать с Wordpress
-    # wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
-    # if wp.connect():
-    #     compare_wp_categories()
-    #     compare_wp_products()
+    wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
+    if wp.connect():
+        compare_wp_categories()
+        compare_wp_products()
 
 
 if __name__ == '__main__':
