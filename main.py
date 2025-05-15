@@ -327,10 +327,10 @@ def compare_products(products_from_file, products_from_db):
     for product_id in products_from_file:
         if product_id not in products_from_db:
             if products_from_file[product_id]['okdp'] in okdp_db_list:
-                print(f'Продукт {products_from_file[product_id]['okdp']} уже есть в базе. Удаляем сбойный продукт.')
+                print(f'Продукт {products_from_file[product_id]["okdp"]} уже есть в базе. Удаляем сбойный продукт.')
                 result = db.delete_product_by_okdp(products_from_file[product_id]['okdp'])
                 if result:
-                    print(f'\tПродукт {products_from_file[product_id]['okdp']} удален.')
+                    print(f'\tПродукт {products_from_file[product_id]["okdp"]} удален.')
                 else:
                     print(f'\tОшибка при удалении продукта')
                     print(products_from_file[product_id]['okdp'])
