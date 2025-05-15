@@ -423,11 +423,11 @@ def process_categories(categories, wp, wp_parent_id=None):
 
         elif category['status'] == 'hidden':
             print(f"Скрываем категорию: {category['name']} (ID: {category['id']})")
-            wp.update_category_visibility(wp_id=category['wp_id'], visible=False)
+            wp.update_category_visibility(wp_id=category['wp_id'], visibility=False)
 
         elif category['status'] == 'unhidden':
             print(f"Возвращаем категорию: {category['name']} (ID: {category['id']})")
-            wp.update_category_visibility(wp_id=category['wp_id'], visible=True)
+            wp.update_category_visibility(wp_id=category['wp_id'], visibility=True)
             db.update_many_categories_status(ids=[category['id']], status='published')
 
         # Рекурсивно обрабатываем подкатегории
