@@ -203,8 +203,6 @@ def get_from_site():
             return False
 
 
-
-
 def parse_filedata(products_from_site):
     categories = {}
     products = {}
