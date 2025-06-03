@@ -42,7 +42,7 @@ class sql:
             return False
 
 
-    # Категории
+    # =========Категории========
     def get_categories(self):
         if not self.conn:
             self.connect()
@@ -167,7 +167,7 @@ class sql:
         except:
             return False
 
-    # Товары
+    # =========Товары===========
     def get_all_products(self):
         if not self.conn:
             self.connect()
@@ -194,6 +194,9 @@ class sql:
             if field not in product:
                 print(f"Ошибка: отсутствует обязательное поле '{field}'.")
                 return False
+
+        if 'id' in product:
+            del product['id']
 
         # Добавляем timedata в product, если его нет
         if 'timedata' not in product:
@@ -232,9 +235,9 @@ class sql:
         if not self.conn:
             self.connect()
 
-        # Проверяем наличие обязательного поля 'id'
-        if 'id' not in product:
-            print("Ошибка: отсутствует обязательное поле 'id'.")
+        # Проверяем наличие обязательного поля 'okdp'
+        if 'okdp' not in product:
+            print("Ошибка: отсутствует обязательное поле 'okdp'.")
             return False
 
         # Добавляем timedata в product, если его нет
@@ -242,16 +245,16 @@ class sql:
             product['timedata'] = global_timestamp
             product['status'] = 'updated'
 
-        # Убираем 'id' из словаря, так как он используется в WHERE
-        product_id = product['id']
-        del product['id']
+        # Убираем 'okdp' из словаря, так как он используется в WHERE
+        product_okdp = product['okdp']
+        del product['okdp']
 
         # Формируем SQL-запрос
         set_clause = ', '.join([f"{key} = ?" for key in product.keys()])  # SET column1 = ?, column2 = ?
-        sql = f"UPDATE products SET {set_clause} WHERE id = ?;"
+        sql = f"UPDATE products SET {set_clause} WHERE okdp = ?;"
 
-        # Значения для обновления (в том же порядке, что и в SET) + id для WHERE
-        values = tuple(product.values()) + (product_id,)
+        # Значения для обновления (в том же порядке, что и в SET) + okdp для WHERE
+        values = tuple(product.values()) + (product_okdp,)
 
         # Выполняем запрос
         cur = self.conn.cursor()
@@ -274,7 +277,7 @@ class sql:
             return False
 
 
-    def update_product_wpid(self, id, wp_id):
+    def update_product_wpid(self, okdp, wp_id):
         if not self.conn:
             self.connect()
 
@@ -282,10 +285,10 @@ class sql:
 
         # Формируем SQL-запрос
         set_clause = ', '.join([f"{key} = ?" for key in product.keys()])  # SET column1 = ?, column2 = ?
-        sql = f"UPDATE products SET {set_clause} WHERE id = ?;"
+        sql = f"UPDATE products SET {set_clause} WHERE okdp = ?;"
 
         # Значения для обновления (в том же порядке, что и в SET) + id для WHERE
-        values = tuple(product.values()) + (id,)
+        values = tuple(product.values()) + (okdp,)
 
         # Выполняем запрос
         cur = self.conn.cursor()
@@ -305,16 +308,16 @@ class sql:
             return False
 
 
-    def update_product_status(self, id, global_timestamp, status='updated'):
+    def update_product_status(self, okdp, global_timestamp, status='updated'):
         # Проверяем, что соединение с базой данных установлено
         if not self.conn:
             self.connect()
 
         # Формируем SQL-запрос
-        sql = f"UPDATE products SET timestamp = ?, status = ? WHERE id = ?;"
+        sql = f"UPDATE products SET timestamp = ?, status = ? WHERE okdp = ?;"
 
-        # Значения для обновления: status + id
-        values = (global_timestamp, status, id)
+        # Значения для обновления: status + okdp
+        values = (global_timestamp, status, okdp)
 
         # Выполняем запрос
         cur = self.conn.cursor()
@@ -333,14 +336,14 @@ class sql:
             return False
 
 
-    def update_products_time(self, product_ids, timedata):
+    def update_products_time(self, product_okdp, timedata):
         # Проверяем, что соединение с базой данных установлено
         if not self.conn:
             self.connect()
 
-        # Проверяем, что массив id не пустой и является списком
-        if not isinstance(product_ids, list) or not product_ids:
-            print("Ошибка: массив id должен быть непустым списком.")
+        # Проверяем, что массив okdp не пустой и является списком
+        if not isinstance(product_okdp, list) or not product_okdp:
+            print("Ошибка: массив okdp должен быть непустым списком.")
             return False
 
         # Проверяем, что timedata имеет корректный тип (например, int или float)
@@ -350,11 +353,11 @@ class sql:
 
         try:
             # Формируем SQL-запрос
-            placeholders = ', '.join(['?'] * len(product_ids))  # Создаем плейсхолдеры для каждого id
-            sql = f"UPDATE products SET timedata = ? WHERE id IN ({placeholders});"
+            placeholders = ', '.join(['?'] * len(product_okdp))  # Создаем плейсхолдеры для каждого okdp
+            sql = f"UPDATE products SET timedata = ? WHERE okdp IN ({placeholders});"
 
-            # Значения для обновления: timedata + список id
-            values = [timedata] + product_ids
+            # Значения для обновления: timedata + список okdp
+            values = [timedata] + product_okdp
 
             # Выполняем запрос
             cur = self.conn.cursor()
@@ -378,16 +381,16 @@ class sql:
             return False
 
 
-    def get_product_by_id(self, product_id):
+    def get_product_by_id(self, product_okdp):
         if not self.conn:
             self.connect()
 
         # Формируем SQL-запрос
-        sql = "SELECT * FROM products WHERE id = ?;"
+        sql = "SELECT * FROM products WHERE okdp = ?;"
 
         # Выполняем запрос
         cur = self.conn.cursor()
-        cur.execute(sql, (product_id,))
+        cur.execute(sql, (product_okdp,))
         result = cur.fetchone()
         cur.close()
 
@@ -404,32 +407,18 @@ class sql:
         # Формируем SQL-запрос
         sql = "SELECT * FROM products WHERE status = ?;"
 
-        # Выполняем запрос
-        cur = self.conn.cursor()
-        cur.execute(sql, (status,))
-        result = cur.fetchall()
-        cur.close()
-
-        return result
-
-    def delete_product(self, id):
-        if not self.conn:
-            self.connect()
-
-        # Формируем SQL-запрос
-        sql = "DELETE FROM products WHERE id = ?;"
-
-        # Выполняем запрос
         try:
+            # Выполняем запрос
             cur = self.conn.cursor()
-            cur.execute(sql, (id,))
-            self.conn.commit()
+            cur.execute(sql, (status,))
+            result = cur.fetchall()
             cur.close()
-            return True
+
+            return result
         except:
             return False
 
-    def delete_product_by_okdp(self, okdp):
+    def delete_product(self, okdp):
         if not self.conn:
             self.connect()
 
@@ -440,6 +429,60 @@ class sql:
         try:
             cur = self.conn.cursor()
             cur.execute(sql, (okdp,))
+            self.conn.commit()
+            cur.close()
+            return True
+        except:
+            return False
+
+    # =========Изображения===========
+    def get_all_images(self):
+        if not self.conn:
+            self.connect()
+
+        # Формируем SQL-запрос
+        sql = "SELECT * FROM images;"
+
+        # Выполняем запрос
+        try:
+            cur = self.conn.cursor()
+            cur.execute(sql)
+            result = cur.fetchall()
+            cur.close()
+
+            return result
+        except:
+            return False
+
+    def get_image_by_url(self, orig_url):
+        if not self.conn:
+            self.connect()
+
+        # Формируем SQL-запрос
+        sql = "SELECT * FROM images WHERE orig_url = ?;"
+
+        # Выполняем запрос
+        try:
+            cur = self.conn.cursor()
+            cur.execute(sql, (orig_url,))
+            result = cur.fetchone()
+            cur.close()
+
+            return result
+        except:
+            return False
+
+    def insert_image(self, okdp, orig_url):
+        if not self.conn:
+            self.connect()
+
+        # Формируем SQL-запрос
+        sql = "INSERT INTO images (okdp, orig_url) VALUES (?, ?);"
+
+        # Выполняем запрос
+        try:
+            cur = self.conn.cursor()
+            cur.execute(sql, (okdp, orig_url))
             self.conn.commit()
             cur.close()
             return True

@@ -9,7 +9,7 @@ class WooCommerceAPI:
         self.consumer_secret = consumer_secret
         self.api_version = api_version
         self.connection_timeout = 10
-        self.read_timeout = 10
+        self.read_timeout = 15
 
     def _get_auth(self):
         return HTTPBasicAuth(self.consumer_key, self.consumer_secret)
@@ -134,14 +134,9 @@ class WooCommerceAPI:
     def update_category_visibility(self, wp_id, visibility=True):
         """Обновляет категорию"""
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories/{wp_id}"
-        if visibility:
-            data = {
-                "visibility": "visible"
-            }
-        else:
-            data = {
-                "visibility": "hidden"
-            }
+        data = {
+            "display": "default" if visibility else "hidden"
+        }
 
         response = requests.put(
             endpoint,
@@ -169,23 +164,6 @@ class WooCommerceAPI:
         return response.json()
 
     # Продукты
-    def upload_image(self, image_url):
-        """Загружает изображение по URL"""
-        endpoint = f"{self.url}/wp-json/wp/v2/media"
-        data = {
-            'title': 'Uploaded Image',
-            'description': 'Image uploaded via API',
-            'media_type': 'image',
-            'source_url': image_url
-        }
-        response = requests.post(
-            endpoint,
-            auth=self._get_auth(),
-            json=data,
-            timeout=(self.connection_timeout, self.read_timeout)
-        )
-        response.raise_for_status()
-        return response.json()['id']
 
     def create_product(self, data):
         """Создает продукт с категорией и изображением"""
@@ -195,7 +173,14 @@ class WooCommerceAPI:
         check_exits = self.check_sku_exists(data['sku'])
         if check_exits:
             print(f"Товар с SKU {data['sku']} уже существует.")
-            self.delete_product(check_exits)
+            count = 0
+            result = False
+            while not result:
+                count += 1
+                print(f"Попытка удалить продукт. Попытка {count}")
+                result = self.delete_product(check_exits)
+                if count > 3:
+                    return None, False
 
         try:
             response = requests.post(
@@ -240,15 +225,21 @@ class WooCommerceAPI:
     def delete_product(self, product_id):
         """Удаляет продукт"""
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/{product_id}"
-        response = requests.delete(
-            endpoint,
-            auth=self._get_auth(),
-            params={"force": True},
-            timeout=(self.connection_timeout, self.read_timeout)
-        )
+        try:
+            response = requests.delete(
+                endpoint,
+                auth=self._get_auth(),
+                params={"force": True},
+                timeout=(self.connection_timeout, self.read_timeout)
+            )
 
-        response.raise_for_status()
-        return response.json()
+            response.raise_for_status()
+            return response.json()
+
+        except requests.exceptions.RequestException as e:
+            # Обработка ошибок соединения
+            print(f"Ошибка при удалении продукта: {e}")
+            return False
 
     def batch_delete_product(self, ids):
         """Удаляет продукт"""
@@ -261,18 +252,23 @@ class WooCommerceAPI:
         else:
             return False
 
-        response = requests.post(
-            endpoint,
-            auth=self._get_auth(),
-            headers={"Content-Type": "application/json"},
-            json=data,
-            params={"force": True}
-        )
+        try:
+            response = requests.post(
+                endpoint,
+                auth=self._get_auth(),
+                headers={"Content-Type": "application/json"},
+                json=data,
+                params={"force": True}
+            )
 
-        response.raise_for_status()
-        if response.status_code == 201 or response.status_code == 200:
-            return True
-        else:
+            response.raise_for_status()
+            if response.status_code == 201 or response.status_code == 200:
+                return True
+            else:
+                return False
+        except requests.exceptions.RequestException as e:
+            # Обработка ошибок соединения
+            print(f"Ошибка при пакетном удалении продуктов: {e}")
             return False
 
     def cat_processor(self, category):
@@ -282,15 +278,85 @@ class WooCommerceAPI:
     def check_sku_exists(self, sku):
         """Проверяет, существует ли товар с указанным SKU"""
         endpoint = f"{self.url}/wp-json/{self.api_version}/products"
-        response = requests.get(
-            endpoint,
-            auth=self._get_auth(),
-            params={'sku': sku},
-            timeout=(self.connection_timeout, self.read_timeout)
-        ).json()
+        try:
+            response = requests.get(
+                endpoint,
+                auth=self._get_auth(),
+                params={'sku': sku},
+                timeout=(self.connection_timeout, self.read_timeout)
+            ).json()
 
-        if len(response) > 0:
-            product_id = response[0]["id"]
-            return product_id
-        else:
+            if len(response) > 0:
+                product_id = response[0]["id"]
+                return product_id
+            else:
+                return False
+        except requests.exceptions.RequestException as e:
+            # Обработка ошибок соединения
+            print(f"Ошибка при проверке существования продукта: {e}")
             return False
+
+    # Изображения
+    def upload_image(self, image_url):
+
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/images"
+
+        try:
+            response = requests.post(
+                endpoint,
+                auth=self._get_auth(),
+                json={"src": image_url},
+                timeout=(self.connection_timeout, self.read_timeout)
+            )
+            response.raise_for_status()
+            return response.json()  # Возвращает данные изображения, включая ID
+        except Exception as e:
+            print(f"Ошибка загрузки изображения: {str(e)}")
+            return False
+
+
+    def delete_single_image(self, image_id):
+
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/images/{image_id}"
+
+        try:
+            response = requests.delete(
+                endpoint,
+                auth=self._get_auth(),
+                params={"force": True},
+                timeout=(self.connection_timeout, self.read_timeout)
+            )
+            return response.status_code == 200
+        except Exception as e:
+            print(f"Ошибка удаления изображения {image_id}: {str(e)}")
+            return False
+
+
+    def batch_delete_images(self, images, chunk_size=50):
+        """
+        Пакетное удаление изображений через WooCommerce API.
+        Возвращает True, если все операции успешны.
+        """
+        endpoint = f"{self.url}/wp-json/{self.api_version}/products/images//batch"
+        all_success = True
+
+        for i in range(0, len(images), chunk_size):
+            chunk = images[i:i + chunk_size]
+            data = {"delete": chunk}
+
+            try:
+                response = requests.post(
+                    endpoint,
+                    auth=self._get_auth(),
+                    json=data,
+                    params={"force": True},
+                    timeout=(self.connection_timeout, self.read_timeout)
+                )
+                if response.status_code != 200:
+                    print(f"Ошибка при удалении пачки: {response.text}")
+                    all_success = False
+            except Exception as e:
+                print(f"Ошибка запроса: {str(e)}")
+                all_success = False
+
+        return all_success
