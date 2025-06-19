@@ -240,6 +240,9 @@ class sql:
             print("Ошибка: отсутствует обязательное поле 'okdp'.")
             return False
 
+        if 'id' in product:
+            del product['id']
+
         # Добавляем timedata в product, если его нет
         if 'timedata' not in product:
             product['timedata'] = global_timestamp

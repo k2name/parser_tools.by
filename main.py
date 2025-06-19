@@ -346,8 +346,7 @@ def compare_products(products_from_file, products_from_db):
             else:
                 result = db.update_products(products_from_file[product_okdp], global_timestamp)
                 if result:
-                    print(f'sqlite: Продукт {products_from_file[product_okdp]["name"]} обновлен.')
-                    print(f'sqlite: Продукт обновлен.\n{products_from_file[product_okdp]}\n{products_from_db[product_okdp]}')
+                    #print(f'sqlite: Продукт {products_from_file[product_okdp]["name"]} обновлен.')
                     stats['updated'] += 1
                 else:
                     print(f'sqlite: Ошибка при обновлении продукта')
@@ -358,7 +357,7 @@ def compare_products(products_from_file, products_from_db):
     bar.close()
     bar.clear()
 
-
+    print(f'sqlite:\n\tНовых: {stats["new"]}\n\tОбновленных: {stats["updated"]}\n\tПропущено: {stats["skipped"]}\n\tОшибок: {stats["error"]}\n\tУдаленных: {stats["deleted"]}')
     
     # обновляем время в продуктах где не было изменений
     if len(compare_idents) > 0:
@@ -415,18 +414,18 @@ def process_categories(categories, wp, wp_parent_id=None):
             if result:
                 db.update_categories(id=category['id'], name=category['name'], status='published', parent_id=category['parent_id'], wp_parent_id=wp_parent_id, wp_id=category['wp_id'])
 
-        elif category['status'] == 'hidden':
-            print(f"Скрываем категорию: {category['name']} (ID: {category['id']})")
-            result = wp.update_category_visibility(wp_id=category['wp_id'], visibility=False)
-            if result:
-                db.update_many_categories_status(ids=[category['id']], status='hidden_final')
-
-
-        elif category['status'] == 'unhidden':
-            print(f"Возвращаем категорию: {category['name']} (ID: {category['id']})")
-            result = wp.update_category_visibility(wp_id=category['wp_id'], visibility=True)
-            if result:
-                db.update_many_categories_status(ids=[category['id']], status='published')
+        # elif category['status'] == 'hidden':
+        #     print(f"Скрываем категорию: {category['name']} (ID: {category['id']})")
+        #     result = wp.update_category_visibility(wp_id=category['wp_id'], visibility=False)
+        #     if result:
+        #         db.update_many_categories_status(ids=[category['id']], status='hidden_final')
+        #
+        #
+        # elif category['status'] == 'unhidden':
+        #     print(f"Возвращаем категорию: {category['name']} (ID: {category['id']})")
+        #     result = wp.update_category_visibility(wp_id=category['wp_id'], visibility=True)
+        #     if result:
+        #         db.update_many_categories_status(ids=[category['id']], status='published')
 
         # Рекурсивно обрабатываем подкатегории
         if 'subcat' in category and isinstance(category['subcat'], dict):
@@ -447,7 +446,6 @@ def compare_wp_categories():
     process_categories(categories, wp)
     categories.clear()
     db_categories.clear()
-
 
 
 def sql_image_processor(okdp, images):

@@ -113,9 +113,9 @@ class WooCommerceAPI:
         data = {
             'name': name,
             'description': description,
-            "visibility": "visible",
-            'image': image
+            'visibility': 'visible',
         }
+        #   'image': image
 
         response = requests.put(
             endpoint,
@@ -134,9 +134,9 @@ class WooCommerceAPI:
     def update_category_visibility(self, wp_id, visibility=True):
         """Обновляет категорию"""
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories/{wp_id}"
-        data = {
-            "display": "default" if visibility else "hidden"
-        }
+        # data = {
+        #     "display": "default" if visibility else "hidden"
+        # }
 
         response = requests.put(
             endpoint,
