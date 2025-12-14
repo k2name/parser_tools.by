@@ -475,17 +475,34 @@ class sql:
         except:
             return False
 
-    def insert_image(self, okdp, orig_url):
+    def insert_image(self, okdp, orig_url, wp_img_id=None, wp_url=None):
         if not self.conn:
             self.connect()
 
         # Формируем SQL-запрос
-        sql = "INSERT INTO images (okdp, orig_url) VALUES (?, ?);"
+        sql = "INSERT INTO images (okdp, orig_url, wp_img_id, wp_url) VALUES (?, ?, ?, ?);"
 
         # Выполняем запрос
         try:
             cur = self.conn.cursor()
-            cur.execute(sql, (okdp, orig_url))
+            cur.execute(sql, (okdp, orig_url, wp_img_id, wp_url))
+            self.conn.commit()
+            cur.close()
+            return True
+        except:
+            return False
+
+    def update_image(self, okdp, orig_url, wp_img_id=None, wp_url=None):
+        if not self.conn:
+            self.connect()
+
+        # Формируем SQL-запрос
+        sql = "UPDATE images SET okdp = ?, wp_img_id = ?, wp_url = ? WHERE orig_url = ?;"
+
+        # Выполняем запрос
+        try:
+            cur = self.conn.cursor()
+            cur.execute(sql, (okdp, wp_img_id, wp_url, orig_url))
             self.conn.commit()
             cur.close()
             return True

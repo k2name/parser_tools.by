@@ -8,12 +8,14 @@ import time
 import tqdm
 import configparser
 import requests
+import unicodedata
 from src.file import io
 from src.help import k2, TextProcessor
 from src.telegramm import TelegramBot
 from src.base import sql
 from src.mysqldb import MySQLReader
 from src.woocommerce import WooCommerceAPI
+from src.wordpress import WordpressAPI
 import xml.etree.ElementTree as ET
 
 use_local = True
@@ -27,8 +29,10 @@ cfg.read('config.ini')
 src_url = cfg.get('tools', 'api_url')
 params = cfg.get('tools', 'params').split(',')
 wp_url = cfg.get('wp', 'wp_url')
-wp_key = cfg.get('wp', 'wp_key')
-wp_secret = cfg.get('wp', 'wp_secret')
+wp_user = cfg.get('wp', 'wp_user')
+wp_password = cfg.get('wp', 'wp_password')
+wc_key = cfg.get('wp', 'wc_key')
+wc_secret = cfg.get('wp', 'wc_secret')
 wp_discount = int(cfg.get('wp', 'wp_price_discount'))
 wp_img_storage = cfg.get('wp', 'wp_img_storage')
 local_img_storage = cfg.get('wp', 'local_img_storage')
@@ -97,6 +101,8 @@ def clean_text(text):
     """
     # Удаляем управляющие символы (кроме табуляции, перевода строки и возврата каретки)
     cleaned_text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+    cleaned_text = unicodedata.normalize("NFKC", cleaned_text)
+    cleaned_text = cleaned_text.replace("\u00A0", " ")
     return cleaned_text
 
 
@@ -218,7 +224,8 @@ def parse_filedata(products_from_site):
             cat_parent_id = None
             if product[f'parentid{i}'] != None:
                 cat_id = product[f'parentid{i}']
-                cat_name = product[f'parentid_name{i}']
+                cat_name = clean_text(product[f'parentid_name{i}'])
+
                 if i != 1:
                     cat_parent_id = product[f'parentid{i-1}']
                 # Сохраняем значение для добавления продукта в лист
@@ -344,7 +351,7 @@ def compare_products(products_from_file, products_from_db):
                 compare_idents.append(product_okdp)
                 stats['skipped'] += 1
             else:
-                result = db.update_products(products_from_file[product_okdp], global_timestamp)
+                result = db.update_products(pr_file, global_timestamp)
                 if result:
                     #print(f'sqlite: Продукт {products_from_file[product_okdp]["name"]} обновлен.')
                     stats['updated'] += 1
@@ -396,10 +403,13 @@ def build_category_tree(categories):
 def process_categories(categories, wp, wp_parent_id=None):
     global db
     for category_id, category in categories.items():
+        cur_time = time.time()
         # Проверяем статус категории
         if category['status'] == 'new':
+            # default image for categoie
+            image = {'id': 207071}
             print(f"Обрабатываем новую категорию: {category['name']} (ID: {category['id']})")
-            result = wp.create_category(name=category['name'], wp_parent_id=wp_parent_id)  # Вызываем метод обработки
+            result = wp.create_category(name=category['name'], wp_parent_id=wp_parent_id, image=image)  # Вызываем метод обработки
             if result:
                 wp_id = result['id']
                 wp_parent_id = result['parent'] if result['parent'] != 0 else None
@@ -410,7 +420,9 @@ def process_categories(categories, wp, wp_parent_id=None):
 
         elif category['status'] == 'update':
             print(f"Обновляем категорию: {category['name']} (ID: {category['id']})")
-            result = wp.update_category(wp_id=category['wp_id'], name=category['name'])
+            # default image for categoie
+            image = {'id': 207071}
+            result = wp.update_category(wp_id=category['wp_id'], name=category['name'], image=image)
             if result:
                 db.update_categories(id=category['id'], name=category['name'], status='published', parent_id=category['parent_id'], wp_parent_id=wp_parent_id, wp_id=category['wp_id'])
 
@@ -427,7 +439,9 @@ def process_categories(categories, wp, wp_parent_id=None):
         #     if result:
         #         db.update_many_categories_status(ids=[category['id']], status='published')
 
+
         # Рекурсивно обрабатываем подкатегории
+        # print(f"Время обработки категории: {round(time.time() - cur_time, 2)} сек.")
         if 'subcat' in category and isinstance(category['subcat'], dict):
             if len(category['subcat']) > 0:
                 process_categories(category['subcat'], wp, wp_parent_id=categories[category_id]['wp_id'])
@@ -451,39 +465,46 @@ def compare_wp_categories():
 def sql_image_processor(okdp, images):
     global db
     global wp
+    global wp_api
 
     i = 0
+    images_new = []
     for image in images:
         need_upload = False
-        result = db.get_image_by_url(image['src_url'])
+        result = db.get_image_by_url(image['src'])
         if result and result is not None:
             if result['wp_img_id']:
-                images[i]['id'] = result['wp_img_id']
+                images[i]['wp_img_id'] = result['wp_img_id']
             else:
-                images[i]['id'] = False
+                images[i]['wp_img_id'] = False
                 need_upload = True
+
             if result['wp_url']:
-                images[i]['src'] = result['wp_url']
+                images[i]['wp_url'] = result['wp_url']
             else:
-                images[i]['src'] = False
+                images[i]['wp_url'] = False
                 need_upload = True
         else:
-            result = db.insert_image(okdp, image['src_url'])
+            result = db.insert_image(okdp, image['src'])
             if result:
-                images[i]['id'] = False
-                images[i]['src'] = False
                 need_upload = True
             else:
                 return False
 
-        i += 1
 
         if need_upload:
-            result = wp.upload_image(image['src_url'])
+            result = wp_api.import_media_from_url(image['src'])
+            wp_url = result['source_url']
+            wp_img_id = result['id']
+            db.update_image(okdp, image['src'], wp_img_id, wp_url)
+            images[i]['wp_img_id'] = wp_img_id
+            images[i]['wp_url'] = wp_url
+        i += 1
 
-    #images = wp_image_processor(images)
 
-    return images
+    for image in images:
+        images_new.append({'position': image['position'], 'id': image['wp_img_id'], 'src': image['wp_url']})
+    return images_new
 
 
 def product_generator(product):
@@ -601,7 +622,7 @@ def product_generator(product):
         data['attributes'] = attributes
 
     if len(images) > 0:
-        #images = sql_image_processor(product['okdp'], images)
+        images = sql_image_processor(product['okdp'], images)
         data['images'] = images
 
     if len(dimensions) > 0:
@@ -726,6 +747,7 @@ def main():
     global help
     global db
     global wp
+    global wp_api
     help = k2()
     db = sql()
 
@@ -737,6 +759,7 @@ def main():
     if clear_db:
         db.destroy_data()
         print('База данных очищена.')
+
 
     # Получаем данные с сайта или локального файла
     products_from_site = get_from_site()
@@ -760,7 +783,8 @@ def main():
     compare_products(file_products, db_products)
 
     # # Начинаем работать с Wordpress
-    wp = WooCommerceAPI(wp_url, wp_key, wp_secret)
+    wp_api = WordpressAPI(wp_url, wp_user, wp_password)
+    wp = WooCommerceAPI(wp_url, wc_key, wc_secret)
     if wp.connect():
         compare_wp_categories()
         compare_wp_products()

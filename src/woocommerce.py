@@ -1,6 +1,19 @@
 import requests
 import time
+import re
+import unicodedata
 from requests.auth import HTTPBasicAuth
+
+# таблица транслитерации максимально близкая к WP + общая практика
+TRANSLIT = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd',
+    'е': 'e', 'ё': 'e', 'ж': 'zh', 'з': 'z', 'и': 'i',
+    'й': 'j', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n',
+    'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+    'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'c', 'ч': 'ch',
+    'ш': 'sh', 'щ': 'sch', 'ъ': '', 'ы': 'y', 'ь': '',
+    'э': 'e', 'ю': 'yu', 'я': 'ya'
+}
 
 class WooCommerceAPI:
     def __init__(self, url, consumer_key, consumer_secret, api_version='wc/v3'):
@@ -32,6 +45,45 @@ class WooCommerceAPI:
         except requests.exceptions.RequestException as e:
             print(f"Не удалось установить соединение: {e}")
             return False
+
+    def slugify(self, text: str, max_length: int = 200) -> str:
+        # нормализация Unicode
+        text = unicodedata.normalize("NFKD", text)
+
+        # перевод в нижний регистр
+        text = text.lower()
+
+        # транслитерация кириллицы
+        result = []
+        for char in text:
+            if char in TRANSLIT:
+                result.append(TRANSLIT[char])
+            else:
+                result.append(char)
+
+        text = ''.join(result)
+
+        # убрать все, кроме букв, цифр и дефиса
+        text = re.sub(r'[^a-z0-9\- ]+', '', text)
+
+        # заменить пробелы на дефисы
+        text = text.replace(' ', '-')
+
+        # удалить повторяющиеся дефисы
+        text = re.sub(r'-+', '-', text)
+
+        # убрать дефисы по краям
+        text = text.strip('-')
+
+        # обрезать по длине
+        if len(text) > max_length:
+            text = text[:max_length].rstrip('-')
+
+        # если вдруг получилось пусто — создать slug заглушку
+        if not text:
+            text = "category"
+
+        return text
 
     def get_all_products(self, per_page=100):
         """Получает все продукты"""
@@ -89,6 +141,7 @@ class WooCommerceAPI:
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories"
         data = {
             'name': name,
+            'slug': self.slugify(name),
             'parent': wp_parent_id if wp_parent_id is not None else 0,
             'description': description,
             'image': image
@@ -112,10 +165,11 @@ class WooCommerceAPI:
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories/{wp_id}"
         data = {
             'name': name,
+            'slug': self.slugify(name),
             'description': description,
+            'image': image,
             'visibility': 'visible',
         }
-        #   'image': image
 
         response = requests.put(
             endpoint,
@@ -134,9 +188,9 @@ class WooCommerceAPI:
     def update_category_visibility(self, wp_id, visibility=True):
         """Обновляет категорию"""
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/categories/{wp_id}"
-        # data = {
-        #     "display": "default" if visibility else "hidden"
-        # }
+        data = {
+            "display": "default" if visibility else "hidden"
+        }
 
         response = requests.put(
             endpoint,
