@@ -489,22 +489,29 @@ def sql_image_processor(okdp, images):
             if result:
                 need_upload = True
             else:
-                return False
+                return None
 
 
         if need_upload:
             result = wp_api.import_media_from_url(image['src'])
-            wp_url = result['source_url']
-            wp_img_id = result['id']
-            db.update_image(okdp, image['src'], wp_img_id, wp_url)
-            images[i]['wp_img_id'] = wp_img_id
-            images[i]['wp_url'] = wp_url
+            if result:
+                print(f"\tЗагружено изображение: {image['src']}")
+                wp_url = result['source_url']
+                wp_img_id = result['id']
+                db.update_image(okdp, image['src'], wp_img_id, wp_url)
+                images[i]['wp_img_id'] = wp_img_id
+                images[i]['wp_url'] = wp_url
+            else:
+                print(f"\tОшибка загрузки изображение: {image['src']}")
+                images[i]['wp_img_id'] = False
+                images[i]['wp_url'] = False
         i += 1
 
 
     for image in images:
-        images_new.append({'position': image['position'], 'id': image['wp_img_id'], 'src': image['wp_url']})
-    return images_new
+        if image['wp_img_id'] and image['wp_url']:
+            images_new.append({'position': image['position'], 'id': image['wp_img_id'], 'src': image['wp_url']})
+    return images_new if len(images_new) > 0 else None
 
 
 def product_generator(product):
@@ -623,7 +630,8 @@ def product_generator(product):
 
     if len(images) > 0:
         images = sql_image_processor(product['okdp'], images)
-        data['images'] = images
+        if images is not None and len(images) > 0:
+            data['images'] = images
 
     if len(dimensions) > 0:
         data['dimensions'] = dimensions

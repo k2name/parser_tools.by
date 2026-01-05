@@ -253,6 +253,8 @@ class WooCommerceAPI:
         except requests.exceptions.RequestException as e:
             # Обработка ошибок соединения
             print(f"Ошибка при создании продукта: {e}")
+            if response.text:
+                print(f"Текст ответа: {response.text}")
             return None, False
 
     def update_product(self, wp_id, data):
@@ -350,7 +352,7 @@ class WooCommerceAPI:
             print(f"Ошибка при проверке существования продукта: {e}")
             return False
 
-    # Изображения
+    # Изображения которые не работают
     def upload_image(self, image_url):
 
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/images"
@@ -368,7 +370,6 @@ class WooCommerceAPI:
             print(f"Ошибка загрузки изображения: {str(e)}")
             return False
 
-
     def delete_single_image(self, image_id):
 
         endpoint = f"{self.url}/wp-json/{self.api_version}/products/images/{image_id}"
@@ -384,7 +385,6 @@ class WooCommerceAPI:
         except Exception as e:
             print(f"Ошибка удаления изображения {image_id}: {str(e)}")
             return False
-
 
     def batch_delete_images(self, images, chunk_size=50):
         """
